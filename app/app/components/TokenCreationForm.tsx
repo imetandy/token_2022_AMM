@@ -5,7 +5,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { WalletNotConnectedError } from '@solana/wallet-adapter-base'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { createRpcClient, Token2022Amm } from '../config/program'
-import { WalletClient } from '../utils/wallet-client'
+import { WalletClientNew } from '../utils/wallet-client-new'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 
@@ -52,7 +52,7 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
       console.log('Wallet address:', publicKey.toString())
 
       // Create Wallet client
-      const walletClient = new WalletClient(connection)
+      const walletClient = new WalletClientNew(connection)
       
       let tokenAAddress: string | null = null
       let tokenBAddress: string | null = null
@@ -70,20 +70,6 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
       if (resultA.success && resultA.mintAddress) {
         tokenAAddress = resultA.mintAddress
         console.log('Token A created:', tokenAAddress)
-        
-        // Initialize counter for Token A
-        console.log('Initializing counter for Token A...')
-        const initCounterA = await walletClient.initializeMintTradeCounter(
-          publicKey,
-          new PublicKey(tokenAAddress),
-          signTransaction
-        )
-        
-        if (!initCounterA.success) {
-          console.error('Failed to initialize counter for Token A:', initCounterA.error)
-          setTransactionResult(initCounterA)
-          return
-        }
         
         // Mint initial tokens to the wallet (1,000,000 tokens with 6 decimals)
         console.log('Minting 1,000,000 Token A to wallet...')
@@ -118,20 +104,6 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
       if (resultB.success && resultB.mintAddress) {
         tokenBAddress = resultB.mintAddress
         console.log('Token B created:', tokenBAddress)
-        
-        // Initialize counter for Token B
-        console.log('Initializing counter for Token B...')
-        const initCounterB = await walletClient.initializeMintTradeCounter(
-          publicKey,
-          new PublicKey(tokenBAddress),
-          signTransaction
-        )
-        
-        if (!initCounterB.success) {
-          console.error('Failed to initialize counter for Token B:', initCounterB.error)
-          setTransactionResult(initCounterB)
-          return
-        }
         
         // Mint initial tokens to the wallet (1,000,000 tokens with 6 decimals)
         console.log('Minting 1,000,000 Token B to wallet...')

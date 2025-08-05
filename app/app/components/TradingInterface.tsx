@@ -5,7 +5,7 @@ import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { WalletNotConnectedError } from '@solana/wallet-adapter-base'
 import { Keypair, PublicKey } from '@solana/web3.js'
 import { createRpcClient, Token2022Amm } from '../config/program'
-import { WalletClient } from '../utils/wallet-client'
+import { WalletClientNew } from '../utils/wallet-client-new'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import BalanceDisplay from './BalanceDisplay'
@@ -70,7 +70,7 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
       console.log('Direction:', swapData.direction)
 
       // Create Wallet client
-      const walletClient = new WalletClient(connection)
+      const walletClient = new WalletClientNew(connection)
       
       // Convert amount to proper format (assuming 6 decimals)
       const inputAmount = Math.floor(parseFloat(swapData.amount) * 1e6)

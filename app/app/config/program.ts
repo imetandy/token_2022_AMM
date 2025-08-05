@@ -1,6 +1,12 @@
-// Program configuration for Token-2022 AMM
+// Program configuration for Token-2022 AMM with three-program architecture
 import { Token2022Amm } from '../types';
 
+// Program IDs for the three-program architecture
+export const TOKEN_SETUP_PROGRAM_ID = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp";
+export const AMM_PROGRAM_ID = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos";
+export const COUNTER_HOOK_PROGRAM_ID = "EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi";
+
+// Legacy program ID for backward compatibility
 export const PROGRAM_ID = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL";
 
 // Network configuration
