@@ -5,12 +5,16 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
+counter_hook = "EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi"
 token_2022_amm = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL"
-counter_hook = "CounterHook111111111111111111111111111111111"
+token_setup = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp"
+amm = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos"
 
 [programs.localnet]
-token_2022_amm = "4eognJEoZBUD2jAQbeudRF2kp8UNPCe1sXd2BaMbkcBs"
-counter_hook = "CounterHook111111111111111111111111111111111"
+counter_hook = "EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi"
+token_2022_amm = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL"
+token_setup = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp"
+amm = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos"
 
 [registry]
 url = "https://api.apr.dev"
