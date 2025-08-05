@@ -6,9 +6,11 @@ skip-lint = false
 
 [programs.devnet]
 token_2022_amm = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL"
+counter_hook = "CounterHook111111111111111111111111111111111"
 
 [programs.localnet]
 token_2022_amm = "4eognJEoZBUD2jAQbeudRF2kp8UNPCe1sXd2BaMbkcBs"
+counter_hook = "CounterHook111111111111111111111111111111111"
 
 [registry]
 url = "https://api.apr.dev"
