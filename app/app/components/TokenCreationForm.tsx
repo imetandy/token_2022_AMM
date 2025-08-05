@@ -1,13 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import React, { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { WalletNotConnectedError } from '@solana/wallet-adapter-base'
 import { Keypair, PublicKey } from '@solana/web3.js'
-import { createRpcClient, Token2022Amm } from '../config/program'
 import { WalletClientNew } from '../utils/wallet-client-new'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
+import { TokenMinting } from '../utils/token-minting'
 
 interface TokenCreationFormProps {
   onTokensSet: (tokenA: string, tokenB: string) => void
@@ -27,6 +26,8 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
   const [tokenBSymbol, setTokenBSymbol] = useState('TKB')
   const [isLoading, setIsLoading] = useState(false)
   const [transactionResult, setTransactionResult] = useState<TransactionResult | null>(null)
+  const [balances, setBalances] = useState<{ tokenA: number; tokenB: number }>({ tokenA: 0, tokenB: 0 })
+  const [balancesLoaded, setBalancesLoaded] = useState(false)
 
   const handleCreateTokens = async () => {
     if (!publicKey) {
@@ -153,6 +154,31 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
     }
   }
 
+  const checkBalances = async () => {
+    if (!publicKey || !createdTokens.tokenA || !createdTokens.tokenB) return;
+
+    try {
+      const tokenMinting = new TokenMinting(connection);
+      
+      const [balanceA, balanceB] = await Promise.all([
+        tokenMinting.getTokenBalance(createdTokens.tokenA, publicKey),
+        tokenMinting.getTokenBalance(createdTokens.tokenB, publicKey)
+      ]);
+      
+      setBalances({ tokenA: balanceA, tokenB: balanceB });
+      setBalancesLoaded(true);
+    } catch (err) {
+      console.error('Error checking balances:', err);
+    }
+  };
+
+  // Check balances when tokens are created
+  React.useEffect(() => {
+    if (createdTokens.tokenA && createdTokens.tokenB && !balancesLoaded) {
+      checkBalances();
+    }
+  }, [createdTokens.tokenA, createdTokens.tokenB, balancesLoaded]);
+
   // If tokens are already created, show the results
   if (createdTokens.tokenA && createdTokens.tokenB) {
     return (
@@ -174,6 +200,11 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
               <p className="text-xs text-green-600 mt-1">
                 Name: {tokenAName} | Symbol: {tokenASymbol}
               </p>
+              {balancesLoaded && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Balance: {balances.tokenA.toLocaleString()} tokens
+                </p>
+              )}
             </div>
             
             <div>
@@ -184,12 +215,39 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
               <p className="text-xs text-green-600 mt-1">
                 Name: {tokenBName} | Symbol: {tokenBSymbol}
               </p>
+              {balancesLoaded && (
+                <p className="text-xs text-blue-600 mt-1">
+                  Balance: {balances.tokenB.toLocaleString()} tokens
+                </p>
+              )}
             </div>
           </div>
           
           <p className="text-xs text-blue-600 mt-2">
             Authority: {publicKey?.toString()}
           </p>
+          
+          {balancesLoaded && (
+            <div className="mt-3 pt-3 border-t border-green-200">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-green-700">Wallet Balances:</span>
+                <button
+                  onClick={checkBalances}
+                  className="px-2 py-1 bg-green-600 text-white text-xs rounded hover:bg-green-700"
+                >
+                  Refresh
+                </button>
+              </div>
+              <div className="mt-2 space-y-1">
+                <p className="text-xs text-green-600">
+                  • {tokenAName}: {balances.tokenA.toLocaleString()} tokens
+                </p>
+                <p className="text-xs text-green-600">
+                  • {tokenBName}: {balances.tokenB.toLocaleString()} tokens
+                </p>
+              </div>
+            </div>
+          )}
         </div>
       </div>
     )

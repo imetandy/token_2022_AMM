@@ -4,8 +4,8 @@ import { useState, useRef } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { WalletNotConnectedError } from '@solana/wallet-adapter-base'
 import { Keypair, PublicKey } from '@solana/web3.js'
-import { PROGRAM_ID, AMM_ID, AMM_SEED, POOL_AUTHORITY_SEED, createRpcClient, Token2022Amm } from '../config/program'
-import { WalletClient } from '../utils/wallet-client'
+import { AMM_PROGRAM_ID, createRpcClient, Token2022Amm } from '../config/program'
+import { WalletClientNew } from '../utils/wallet-client-new'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 
@@ -44,7 +44,7 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
 
     try {
       // Create Wallet client
-      const walletClient = new WalletClient(connection)
+      const walletClient = new WalletClientNew(connection)
       
       // Generate a unique pool ID
       const poolId = `pool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
@@ -52,7 +52,7 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       // Derive AMM PDA using pool ID
       const [ammPda] = PublicKey.findProgramAddressSync(
         [Buffer.from('amm'), Buffer.from(poolId)],
-        new PublicKey('GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL')
+        new PublicKey(AMM_PROGRAM_ID)
       )
       
       // Derive pool PDA using AMM public key and token mints
@@ -62,7 +62,7 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
           new PublicKey(tokenA).toBuffer(),
           new PublicKey(tokenB).toBuffer()
         ],
-        new PublicKey('GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL')
+        new PublicKey(AMM_PROGRAM_ID)
       )
       
       // Derive pool authority PDA
@@ -71,9 +71,9 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
           ammPda.toBuffer(),
           new PublicKey(tokenA).toBuffer(),
           new PublicKey(tokenB).toBuffer(),
-          Buffer.from('pool-authority')
+          Buffer.from('pool_authority')
         ],
-        new PublicKey('GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL')
+        new PublicKey(AMM_PROGRAM_ID)
       )
       
       // Generate keypair for liquidity mint (this needs to be a signer)
@@ -90,7 +90,6 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       console.log('Creating AMM with pool ID:', poolId)
       const ammResult = await walletClient.createAMM(
         publicKey,
-        ammPda,
         poolId,
         solFee,
         solFeeCollector,

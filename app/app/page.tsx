@@ -4,7 +4,7 @@ import { useState, useCallback } from 'react'
 import TokenCreationForm from './components/TokenCreationForm'
 import TradingInterface from './components/TradingInterface'
 import PoolCreationForm from './components/PoolCreationForm'
-import TokenMintingComponent from './components/TokenMinting'
+
 import { WalletConnectButton } from './components/WalletConnectButton'
 import { Connection } from '@solana/web3.js'
 
@@ -66,13 +66,6 @@ export default function Home() {
               <span className="text-xs font-medium">Create Tokens</span>
             </div>
             <div className={`w-6 h-0.5 ${createdTokens.tokenA && createdTokens.tokenB ? 'bg-green-300' : 'bg-gray-200'}`}></div>
-            <div className="flex items-center space-x-1 text-yellow-600">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium bg-yellow-100">
-                1.5
-              </div>
-              <span className="text-xs font-medium">Mint Tokens</span>
-            </div>
-            <div className="w-6 h-0.5 bg-gray-200"></div>
             <div className={`flex items-center space-x-1 ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${createdPool.amm && createdPool.pool ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
                 {createdPool.amm && createdPool.pool ? '✓' : '2'}
@@ -109,24 +102,7 @@ export default function Home() {
             />
           </div>
 
-          {/* Token Minting Component */}
-          <div className="form-container flex-1">
-            <div className="form-header">
-              <div className="w-6 h-6 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <span className="text-yellow-600 font-bold text-xs">1.5</span>
-              </div>
-              <div>
-                <h3 className="form-title">Mint Test Tokens</h3>
-                <p className="form-subtitle">Use CLI to mint tokens to your wallet</p>
-              </div>
-            </div>
-            
-            <TokenMintingComponent 
-              connection={new Connection('https://api.devnet.solana.com')}
-              tokenA={createdTokens.tokenA}
-              tokenB={createdTokens.tokenB}
-            />
-          </div>
+
 
           {/* Pool Creation Form */}
           <div className="form-container flex-1">
@@ -186,12 +162,7 @@ export default function Home() {
                   {createdTokens.tokenA && createdTokens.tokenB ? '✓' : '—'}
                 </span>
               </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Initial Supply Minted</span>
-                <span className={`text-xs font-medium ${createdTokens.tokenA && createdTokens.tokenB ? 'text-green-600' : 'text-yellow-600'}`}>
-                  {createdTokens.tokenA && createdTokens.tokenB ? '✓' : 'Create Tokens'}
-                </span>
-              </div>
+
               <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-600">Pool Created</span>
                 <span className={`text-xs font-medium ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
