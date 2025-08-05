@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useCallback } from 'react'
 import TokenCreationForm from './components/TokenCreationForm'
 import TradingInterface from './components/TradingInterface'
 import PoolCreationForm from './components/PoolCreationForm'
+import TokenMintingComponent from './components/TokenMinting'
 import { WalletConnectButton } from './components/WalletConnectButton'
+import { Connection } from '@solana/web3.js'
 
 export default function Home() {
   const [createdTokens, setCreatedTokens] = useState<{
@@ -16,6 +18,14 @@ export default function Home() {
     amm: string | null;
     pool: string | null;
   }>({ amm: null, pool: null })
+
+  const handleTokensSet = useCallback((tokenA: string, tokenB: string) => {
+    setCreatedTokens({ tokenA, tokenB });
+  }, []);
+
+  const handlePoolCreated = useCallback((amm: string, pool: string) => {
+    setCreatedPool({ amm, pool });
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -53,9 +63,16 @@ export default function Home() {
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${createdTokens.tokenA && createdTokens.tokenB ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
                 {createdTokens.tokenA && createdTokens.tokenB ? '✓' : '1'}
               </div>
-              <span className="text-xs font-medium">Tokens</span>
+              <span className="text-xs font-medium">Create Tokens</span>
             </div>
             <div className={`w-6 h-0.5 ${createdTokens.tokenA && createdTokens.tokenB ? 'bg-green-300' : 'bg-gray-200'}`}></div>
+            <div className="flex items-center space-x-1 text-yellow-600">
+              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium bg-yellow-100">
+                1.5
+              </div>
+              <span className="text-xs font-medium">Mint Tokens</span>
+            </div>
+            <div className="w-6 h-0.5 bg-gray-200"></div>
             <div className={`flex items-center space-x-1 ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${createdPool.amm && createdPool.pool ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
                 {createdPool.amm && createdPool.pool ? '✓' : '2'}
@@ -74,36 +91,41 @@ export default function Home() {
 
         {/* Main Forms Container */}
         <div className="flex flex-col lg:flex-row gap-4">
-          {/* Token Creation Form */}
+          {/* Token Creation Component */}
           <div className="form-container flex-1">
             <div className="form-header">
               <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
                 <span className="text-blue-600 font-bold text-xs">1</span>
               </div>
               <div>
-                <h3 className="form-title">Create Tokens</h3>
-                <p className="form-subtitle">Mint Token-2022 with transfer hooks</p>
+                <h3 className="form-title">Create Token-2022</h3>
+                <p className="form-subtitle">Create tokens with transfer hooks using counter_hook program</p>
               </div>
             </div>
             
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Token 1</label>
-                <TokenCreationForm 
-                  tokenType="A"
-                  onTokenCreated={(address) => setCreatedTokens(prev => ({ ...prev, tokenA: address }))}
-                  createdToken={createdTokens.tokenA}
-                />
+            <TokenCreationForm 
+              onTokensSet={handleTokensSet}
+              createdTokens={createdTokens}
+            />
+          </div>
+
+          {/* Token Minting Component */}
+          <div className="form-container flex-1">
+            <div className="form-header">
+              <div className="w-6 h-6 bg-yellow-100 rounded-lg flex items-center justify-center">
+                <span className="text-yellow-600 font-bold text-xs">1.5</span>
               </div>
               <div>
-                <label className="block text-xs font-medium text-gray-700 mb-1">Token 2</label>
-                <TokenCreationForm 
-                  tokenType="B"
-                  onTokenCreated={(address) => setCreatedTokens(prev => ({ ...prev, tokenB: address }))}
-                  createdToken={createdTokens.tokenB}
-                />
+                <h3 className="form-title">Mint Test Tokens</h3>
+                <p className="form-subtitle">Use CLI to mint tokens to your wallet</p>
               </div>
             </div>
+            
+            <TokenMintingComponent 
+              connection={new Connection('https://api.devnet.solana.com')}
+              tokenA={createdTokens.tokenA}
+              tokenB={createdTokens.tokenB}
+            />
           </div>
 
           {/* Pool Creation Form */}
@@ -121,7 +143,7 @@ export default function Home() {
             <PoolCreationForm 
               tokenA={createdTokens.tokenA}
               tokenB={createdTokens.tokenB}
-              onPoolCreated={(amm, pool) => setCreatedPool({ amm, pool })}
+              onPoolCreated={handlePoolCreated}
               createdPool={createdPool}
             />
           </div>
@@ -165,6 +187,12 @@ export default function Home() {
                 </span>
               </div>
               <div className="flex items-center justify-between">
+                <span className="text-xs text-gray-600">Initial Supply Minted</span>
+                <span className={`text-xs font-medium ${createdTokens.tokenA && createdTokens.tokenB ? 'text-green-600' : 'text-yellow-600'}`}>
+                  {createdTokens.tokenA && createdTokens.tokenB ? '✓' : 'Create Tokens'}
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
                 <span className="text-xs text-gray-600">Pool Created</span>
                 <span className={`text-xs font-medium ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
                   {createdPool.amm && createdPool.pool ? '✓' : '—'}
@@ -185,21 +213,21 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Transfer Hook Info */}
+          {/* Counter Hook Info */}
           <div className="lg:w-1/3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 p-4">
-            <h3 className="form-title text-blue-900 mb-3">Transfer Hook Security</h3>
+            <h3 className="form-title text-blue-900 mb-3">Counter Hook Integration</h3>
             <div className="space-y-2 text-xs text-blue-800">
               <div className="flex items-start space-x-2">
                 <span className="text-blue-600 mt-0.5">•</span>
-                <span>All token transfers are validated by programmable hooks</span>
+                <span>Tokens created with transfer hooks enabled</span>
               </div>
               <div className="flex items-start space-x-2">
                 <span className="text-blue-600 mt-0.5">•</span>
-                <span>Pool operations are automatically whitelisted</span>
+                <span>Trade counters automatically initialized</span>
               </div>
               <div className="flex items-start space-x-2">
                 <span className="text-blue-600 mt-0.5">•</span>
-                <span>Enhanced security and compliance built-in</span>
+                <span>Counter_hook program tracks all transfers</span>
               </div>
             </div>
           </div>
