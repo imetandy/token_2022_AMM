@@ -1,4 +1,4 @@
-use anchor_lang::prelude::*;
+// Utility functions for AMM calculations
 
 pub fn calculate_constant_product_swap_output(
     input_amount: u64,

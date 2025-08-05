@@ -17,6 +17,7 @@ impl<'info> CreatePool<'info> {
     pub fn create_pool(&mut self) -> Result<()> {
         let pool = &mut self.pool;
         pool.amm = self.amm.key();
+        
         pool.mint_a = self.mint_a.key();
         pool.mint_b = self.mint_b.key();
         pool.vault_a = self.pool_account_a.key();
@@ -33,7 +34,8 @@ pub struct CreatePool<'info> {
     #[account(
         seeds = [
             AMM_SEED,
-            amm.pool_id.as_bytes()
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
     )]

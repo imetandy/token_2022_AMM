@@ -15,7 +15,8 @@ pub struct SwapExactTokensForTokens<'info> {
     #[account(
         seeds = [
             AMM_SEED,
-            amm.pool_id.as_bytes()
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
     )]
@@ -91,7 +92,7 @@ impl<'info> SwapExactTokensForTokens<'info> {
         swap_a: bool,
         input_amount: u64,
         min_output_amount: u64,
-        bumps: &SwapExactTokensForTokensBumps,
+        _bumps: &SwapExactTokensForTokensBumps,
     ) -> Result<()> {
         msg!("Swapping {} tokens", input_amount);
         msg!("Swap direction: {}", if swap_a { "A to B" } else { "B to A" });

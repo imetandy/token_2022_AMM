@@ -1,20 +1,21 @@
 use anchor_lang::prelude::*;
+use anchor_spl::token_interface::Mint;
 use crate::{constants::AMM_SEED, errors::*, state::Amm};
 
 #[derive(Accounts)]
-#[instruction(pool_id: String, sol_fee: u64)]
+#[instruction(mint_a: Pubkey, mint_b: Pubkey, sol_fee: u64)]
 pub struct CreateAmm<'info> {
     // The AMM account
     #[account(
-        init,
+        init_if_needed,
         payer = authority,
         space = Amm::LEN,
         seeds = [
             AMM_SEED,
-            pool_id.as_bytes(),
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
-        constraint = sol_fee > 0 && sol_fee <= 100_000_000 @ AmmError::InvalidFee, // Max 0.1 SOL
     )]
     pub amm: Box<Account<'info, Amm>>,
 
@@ -31,6 +32,11 @@ pub struct CreateAmm<'info> {
     // The account paying for all rents
     #[account(mut)]
     pub authority: Signer<'info>,
+    
+    // Token mints for the AMM
+    pub mint_a: Box<InterfaceAccount<'info, Mint>>,
+    pub mint_b: Box<InterfaceAccount<'info, Mint>>,
+    
     // Solana ecosystem accounts
     pub system_program: Program<'info, System>,
 }
@@ -42,11 +48,15 @@ pub struct UpdateAmm<'info> {
         mut,
         seeds = [
             AMM_SEED,
-            amm.pool_id.as_bytes()
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
     )]
     pub amm: Account<'info, Amm>,
+    
+    pub mint_a: Box<InterfaceAccount<'info, Mint>>,
+    pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         constraint = admin.is_signer @ AmmError::UnauthorizedAdmin
@@ -61,11 +71,15 @@ pub struct UpdateFee<'info> {
         mut,
         seeds = [
             AMM_SEED,
-            amm.pool_id.as_bytes()
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
     )]
     pub amm: Account<'info, Amm>,
+    
+    pub mint_a: Box<InterfaceAccount<'info, Mint>>,
+    pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
         constraint = admin.is_signer @ AmmError::UnauthorizedAdmin
@@ -76,34 +90,51 @@ pub struct UpdateFee<'info> {
 impl<'info> CreateAmm<'info> {
     pub fn create_amm(
         &mut self, 
-        pool_id: String, 
+        mint_a: Pubkey, 
+        mint_b: Pubkey,
         sol_fee: u64,
         sol_fee_collector: Pubkey,
     ) -> Result<()> {
+        msg!("Entering create_amm implementation");
+        msg!("Mint A: {}", mint_a);
+        msg!("Mint B: {}", mint_b);
 
         // Check if the AMM has already been created
         if self.amm.created {
             msg!("AMM has already been created, cannot create again");
             return Err(AmmError::PoolAlreadyExists.into());
-        } else {
-
-            // set inner values of amm
-            self.amm.set_inner(
-                Amm {
-                    pool_id,
-                    admin: self.admin.key(),
-                    sol_fee,
-                    sol_fee_collector,
-                    created: true,
-                    is_immutable: false, // Defaulting to false when created
-                }
-            );
-            
-            msg!("AMM Created, setting created state to True");
-        
-            Ok(())
-        
         }
+        
+        msg!("AMM not created yet, proceeding with creation");
+        msg!("About to create Amm struct");
+        
+        // Create a deterministic pool ID from the mints
+        let pool_id = format!("{}-{}", mint_a, mint_b);
+        let mut pool_id_array = [0u8; 64];
+        let pool_id_bytes = pool_id.as_bytes();
+        let copy_len = std::cmp::min(pool_id_bytes.len(), 64);
+        pool_id_array[..copy_len].copy_from_slice(&pool_id_bytes[..copy_len]);
+        
+        let amm_struct = Amm {
+            pool_id: pool_id_array,
+            admin: self.admin.key(),
+            sol_fee,
+            sol_fee_collector,
+            created: true,
+            is_immutable: false, // Defaulting to false when created
+        };
+        
+        msg!("Amm struct created successfully");
+        msg!("About to call set_inner");
+        msg!("AMM::LEN constant: {}", Amm::LEN);
+        
+        // set inner values of amm
+        self.amm.set_inner(amm_struct);
+        
+        msg!("set_inner completed successfully");
+        msg!("AMM Created, setting created state to True");
+        
+        Ok(())
     }
     
 }
@@ -139,7 +170,7 @@ impl<'info> UpdateAmm<'info> {
     // Function to make the AMM immutable
     pub fn make_immutable(&mut self) -> Result<()> {
         // Check if the current admin is the signer
-        if self.admin.key() != self.admin.key() {
+        if self.admin.key() != self.amm.admin {
             msg!("Unauthorized Admin, Cannot make AMM immutable");
             return Err(AmmError::UnauthorizedAdmin.into());
         }

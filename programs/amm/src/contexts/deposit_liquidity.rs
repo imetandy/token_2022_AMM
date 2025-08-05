@@ -15,7 +15,8 @@ pub struct DepositLiquidity<'info> {
     #[account(
         seeds = [
             AMM_SEED,
-            amm.pool_id.as_bytes()
+            mint_a.key().as_ref(),
+            mint_b.key().as_ref(),
         ],
         bump,
     )]
@@ -48,6 +49,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
+        constraint = pool_account_a.mint == pool.mint_a @ AmmError::InvalidPool,
         associated_token::mint = mint_a,
         associated_token::authority = pool_authority,
     )]
@@ -55,6 +57,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
+        constraint = pool_account_b.mint == pool.mint_b @ AmmError::InvalidPool,
         associated_token::mint = mint_b,
         associated_token::authority = pool_authority,
     )]
@@ -62,6 +65,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
+        constraint = user_account_a.mint == pool.mint_a @ AmmError::InvalidPool,
         associated_token::mint = mint_a,
         associated_token::authority = user,
     )]
@@ -69,20 +73,23 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
+        constraint = user_account_b.mint == pool.mint_b @ AmmError::InvalidPool,
         associated_token::mint = mint_b,
         associated_token::authority = user,
     )]
     pub user_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = lp_mint,
         associated_token::authority = user,
     )]
     pub user_lp_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
-        mut,
+        init_if_needed,
+        payer = user,
         associated_token::mint = lp_mint,
         associated_token::authority = pool_authority,
     )]
@@ -91,6 +98,7 @@ pub struct DepositLiquidity<'info> {
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
     #[account(
+        mut,
         constraint = user.is_signer @ AmmError::NotSigner
     )]
     pub user: Signer<'info>,
@@ -104,7 +112,6 @@ pub struct DepositLiquidity<'info> {
 impl<'info> DepositLiquidity<'info> {
     pub fn deposit_liquidity(
         &mut self,
-        bumps: &DepositLiquidityBumps,
         amount_a: u64,
         amount_b: u64,
     ) -> Result<()> {

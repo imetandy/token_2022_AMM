@@ -3,7 +3,6 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{Token2022, TokenAccount},
 };
-use crate::errors::*;
 
 #[derive(Accounts)]
 pub struct CreateTokenAccounts<'info> {
