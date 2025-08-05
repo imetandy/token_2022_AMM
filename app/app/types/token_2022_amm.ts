@@ -1,1 +1,0 @@
-../../../target/types/token_2022_amm.ts
