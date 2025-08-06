@@ -3,7 +3,7 @@ use anchor_spl::{
     token_interface::{Mint, Token2022},
     associated_token::AssociatedToken,
 };
-use counter_hook::program::CounterHook;
+use counter_hook;
 use crate::errors::TokenSetupError;
 
 #[derive(Accounts)]
@@ -33,7 +33,27 @@ pub struct CreateTokenWithHook<'info> {
     pub payer: Signer<'info>,
 
     /// The counter hook program for transfer hooks
-    pub counter_hook_program: Program<'info, CounterHook>,
+    pub counter_hook_program: UncheckedAccount<'info>,
+
+    /// CHECK: Extra account meta list for the mint
+    #[account(
+        init_if_needed,
+        seeds = [b"extra-account-metas", mint.key().as_ref()],
+        bump,
+        payer = payer,
+        space = 32
+    )]
+    pub extra_account_meta_list: AccountInfo<'info>,
+
+    /// CHECK: Mint trade counter for the mint
+    #[account(
+        init_if_needed,
+        seeds = [b"mint-trade-counter", mint.key().as_ref()],
+        bump,
+        payer = payer,
+        space = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 32 // MintTradeCounter::LEN
+    )]
+    pub mint_trade_counter: AccountInfo<'info>,
 
     /// Solana ecosystem accounts
     pub system_program: Program<'info, System>,
@@ -66,10 +86,36 @@ impl<'info> CreateTokenWithHook<'info> {
         msg!("Transfer hook authority: {}", self.authority.key());
         msg!("Transfer hook program ID: {}", self.counter_hook_program.key());
         
+        msg!("Step 4: Initializing transfer hook accounts");
+        msg!("Extra account meta list: {}", self.extra_account_meta_list.key());
+        msg!("Mint trade counter: {}", self.mint_trade_counter.key());
+        
+        // Initialize the extra account meta list
+        let extra_account_meta_list_data = &mut self.extra_account_meta_list.data.borrow_mut();
+        use spl_tlv_account_resolution::state::ExtraAccountMetaList;
+        use anchor_spl::token_2022_extensions::spl_token_metadata_interface::state::TokenMetadata;
+        
+        ExtraAccountMetaList::init::<TokenMetadata>(
+            extra_account_meta_list_data,
+            &[],
+        )?;
+        
+        // Initialize the mint trade counter
+        let counter_data = counter_hook::state::MintTradeCounter::new(
+            self.mint.key(),
+            self.authority.key(),
+        );
+        
+        counter_data.serialize(&mut &mut self.mint_trade_counter.data.borrow_mut()[..])?;
+        
+        msg!("Step 5: Transfer hook accounts initialized successfully");
+        msg!("Extra account meta list initialized with 0 accounts");
+        msg!("Mint trade counter initialized with default values");
+        
         msg!("=== CreateTokenWithHook completed successfully ===");
         msg!("Token-2022 mint with Transfer Hook created successfully!");
         msg!("Mint address: {}", self.mint.key());
-        msg!("IMPORTANT: Remember to initialize extra account meta list for this mint");
+        msg!("Transfer hook accounts are ready for use");
         
         Ok(())
     }

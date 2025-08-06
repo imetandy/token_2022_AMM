@@ -1,7 +1,8 @@
-use anchor_lang::prelude::*;
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::pubkey::Pubkey;
 
 /// Mint-specific trade counter that tracks trades for each mint
-#[account]
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct MintTradeCounter {
     /// The mint this counter belongs to
     pub mint: Pubkey,
@@ -20,5 +21,17 @@ pub struct MintTradeCounter {
 }
 
 impl MintTradeCounter {
-    pub const LEN: usize = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 32;
+    pub const LEN: usize = 32 + 8 + 8 + 8 + 8 + 8 + 32;
+    
+    pub fn new(mint: Pubkey, hook_owner: Pubkey) -> Self {
+        Self {
+            mint,
+            incoming_transfers: 0,
+            outgoing_transfers: 0,
+            total_incoming_volume: 0,
+            total_outgoing_volume: 0,
+            last_updated: 0,
+            hook_owner,
+        }
+    }
 } 
