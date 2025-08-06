@@ -4,7 +4,7 @@ use anchor_spl::{
     associated_token::AssociatedToken,
     token_interface::{
         Mint,
-        Token2022, TokenAccount
+        Token2022
     },
 };
 use crate::{
@@ -20,10 +20,27 @@ impl<'info> CreatePool<'info> {
         
         pool.mint_a = self.mint_a.key();
         pool.mint_b = self.mint_b.key();
-        pool.vault_a = self.pool_account_a.key();
-        pool.vault_b = self.pool_account_b.key();
+        // Note: vault_a and vault_b will be set when token accounts are created
+        pool.vault_a = Pubkey::default(); // Will be set in create_pool_token_accounts
+        pool.vault_b = Pubkey::default(); // Will be set in create_pool_token_accounts
         pool.lp_mint = self.mint_liquidity.key();
         pool.total_liquidity = 0;
+        
+        // Store the pool authority bump for deterministic derivation
+        let (_, bump) = Pubkey::find_program_address(
+            &[
+                self.amm.key().as_ref(),
+                self.mint_a.key().as_ref(),
+                self.mint_b.key().as_ref(),
+                POOL_AUTHORITY_SEED.as_ref(),
+            ],
+            &crate::ID,
+        );
+        pool.pool_authority_bump = bump;
+
+        msg!("Pool created successfully");
+        msg!("Pool authority bump: {}", bump);
+        msg!("LP mint: {}", self.mint_liquidity.key());
 
         Ok(())
     }
@@ -31,6 +48,9 @@ impl<'info> CreatePool<'info> {
 
 #[derive(Accounts)]
 pub struct CreatePool<'info> {
+    /// The account paying for all rents
+    #[account(mut)]
+    pub payer: Signer<'info>,
     #[account(
         seeds = [
             AMM_SEED,
@@ -51,11 +71,11 @@ pub struct CreatePool<'info> {
             mint_b.key().as_ref(),
         ],
         bump,
-        // todo: confirm all constraints for pool account.
         constraint = mint_a.key() != mint_b.key() @ AmmError::InvalidPool,
     )]
     pub pool: Box<Account<'info, Pool>>,
-    /// CHECK:
+    
+    /// CHECK: Pool authority PDA - doesn't need to be created, just derived
     #[account(
         seeds = [
             amm.key().as_ref(),
@@ -82,25 +102,7 @@ pub struct CreatePool<'info> {
 
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(
-        init,
-        payer = payer,
-        associated_token::mint = mint_a,
-        associated_token::authority = pool_authority,
-    )]
-    pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(
-        init,
-        payer = payer,
-        associated_token::mint = mint_b,
-        associated_token::authority = pool_authority,
-    )]
-    pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
-
-    /// The account paying for all rents
-    #[account(mut)]
-    pub payer: Signer<'info>,
 
     /// Solana ecosystem accounts
     pub system_program: Program<'info, System>,

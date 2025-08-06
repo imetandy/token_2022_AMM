@@ -27,7 +27,10 @@ export const sendAndConfirmTransaction = async (
 ): Promise<TransactionResult> => {
   try {
     // Send transaction
-    const signature = await connection.sendTransaction(transaction, signers);
+    const signature = await connection.sendTransaction(transaction, signers, {
+      skipPreflight: true,
+      maxRetries: 3
+    });
     console.log('Transaction sent:', signature);
 
     // Wait for confirmation

@@ -41,7 +41,11 @@ export type Amm = {
               },
               {
                 "kind": "arg",
-                "path": "poolId"
+                "path": "mintA"
+              },
+              {
+                "kind": "arg",
+                "path": "mintB"
               }
             ]
           }
@@ -65,14 +69,24 @@ export type Amm = {
           "signer": true
         },
         {
+          "name": "mintA"
+        },
+        {
+          "name": "mintB"
+        },
+        {
           "name": "systemProgram",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "poolId",
-          "type": "string"
+          "name": "mintA",
+          "type": "pubkey"
+        },
+        {
+          "name": "mintB",
+          "type": "pubkey"
         },
         {
           "name": "solFee",
@@ -98,6 +112,14 @@ export type Amm = {
       ],
       "accounts": [
         {
+          "name": "payer",
+          "docs": [
+            "The account paying for all rents"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "amm",
           "pda": {
             "seeds": [
@@ -111,8 +133,11 @@ export type Amm = {
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "amm"
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
               }
             ]
           }
@@ -185,6 +210,135 @@ export type Amm = {
         },
         {
           "name": "mintB"
+        },
+        {
+          "name": "systemProgram",
+          "docs": [
+            "Solana ecosystem accounts"
+          ],
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "associatedTokenProgram",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "createPoolTokenAccounts",
+      "discriminator": [
+        121,
+        90,
+        65,
+        202,
+        12,
+        119,
+        182,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "The account paying for the transaction"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "amm",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  109,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "amm"
+              },
+              {
+                "kind": "account",
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
+              }
+            ]
+          }
+        },
+        {
+          "name": "poolAuthority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "amm"
+              },
+              {
+                "kind": "account",
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mintA"
+        },
+        {
+          "name": "mintB"
+        },
+        {
+          "name": "lpMint"
         },
         {
           "name": "poolAccountA",
@@ -367,55 +521,13 @@ export type Amm = {
           }
         },
         {
-          "name": "payer",
-          "docs": [
-            "The account paying for all rents"
-          ],
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "systemProgram",
-          "docs": [
-            "Solana ecosystem accounts"
-          ],
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "associatedTokenProgram",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "tokenProgram",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "createTokenAccounts",
-      "discriminator": [
-        163,
-        216,
-        49,
-        204,
-        97,
-        16,
-        80,
-        167
-      ],
-      "accounts": [
-        {
-          "name": "tokenAccount",
-          "docs": [
-            "The token account to create"
-          ],
+          "name": "poolLpAccount",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "authority"
+                "path": "poolAuthority"
               },
               {
                 "kind": "const",
@@ -456,7 +568,7 @@ export type Amm = {
               },
               {
                 "kind": "account",
-                "path": "mint"
+                "path": "lpMint"
               }
             ],
             "program": {
@@ -499,27 +611,6 @@ export type Amm = {
           }
         },
         {
-          "name": "mint",
-          "docs": [
-            "The mint for the token account"
-          ]
-        },
-        {
-          "name": "authority",
-          "docs": [
-            "The authority for the token account"
-          ],
-          "signer": true
-        },
-        {
-          "name": "payer",
-          "docs": [
-            "The account paying for the transaction"
-          ],
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "systemProgram",
           "docs": [
             "Solana ecosystem accounts"
@@ -527,12 +618,12 @@ export type Amm = {
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "tokenProgram",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-        },
-        {
           "name": "associatedTokenProgram",
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "tokenProgram",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
       ],
       "args": []
@@ -564,8 +655,11 @@ export type Amm = {
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "amm"
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
               }
             ]
           }
@@ -1178,6 +1272,7 @@ export type Amm = {
         },
         {
           "name": "user",
+          "writable": true,
           "signer": true
         },
         {
@@ -1208,16 +1303,16 @@ export type Amm = {
       ]
     },
     {
-      "name": "swapExactTokensForTokens",
+      "name": "swap",
       "discriminator": [
-        249,
-        86,
-        253,
-        50,
-        177,
-        221,
-        73,
-        162
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
       ],
       "accounts": [
         {
@@ -1234,8 +1329,11 @@ export type Amm = {
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "amm"
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
               }
             ]
           }
@@ -1726,11 +1824,20 @@ export type Amm = {
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "amm"
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
               }
             ]
           }
+        },
+        {
+          "name": "mintA"
+        },
+        {
+          "name": "mintB"
         },
         {
           "name": "admin",
@@ -1772,11 +1879,20 @@ export type Amm = {
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "amm"
+                "path": "mintA"
+              },
+              {
+                "kind": "account",
+                "path": "mintB"
               }
             ]
           }
+        },
+        {
+          "name": "mintA"
+        },
+        {
+          "name": "mintB"
         },
         {
           "name": "admin",
@@ -1875,9 +1991,14 @@ export type Amm = {
           {
             "name": "poolId",
             "docs": [
-              "The unique pool identifier"
+              "The unique pool identifier (fixed size array)"
             ],
-            "type": "string"
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           },
           {
             "name": "admin",
@@ -1967,6 +2088,13 @@ export type Amm = {
               "Total liquidity in the pool"
             ],
             "type": "u64"
+          },
+          {
+            "name": "poolAuthorityBump",
+            "docs": [
+              "Pool authority bump for deterministic derivation"
+            ],
+            "type": "u8"
           }
         ]
       }

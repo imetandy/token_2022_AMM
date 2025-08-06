@@ -35,7 +35,11 @@
               },
               {
                 "kind": "arg",
-                "path": "pool_id"
+                "path": "mint_a"
+              },
+              {
+                "kind": "arg",
+                "path": "mint_b"
               }
             ]
           }
@@ -59,14 +63,24 @@
           "signer": true
         },
         {
+          "name": "mint_a"
+        },
+        {
+          "name": "mint_b"
+        },
+        {
           "name": "system_program",
           "address": "11111111111111111111111111111111"
         }
       ],
       "args": [
         {
-          "name": "pool_id",
-          "type": "string"
+          "name": "mint_a",
+          "type": "pubkey"
+        },
+        {
+          "name": "mint_b",
+          "type": "pubkey"
         },
         {
           "name": "sol_fee",
@@ -92,6 +106,14 @@
       ],
       "accounts": [
         {
+          "name": "payer",
+          "docs": [
+            "The account paying for all rents"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
           "name": "amm",
           "pda": {
             "seeds": [
@@ -105,8 +127,11 @@
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "Amm"
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
               }
             ]
           }
@@ -179,6 +204,135 @@
         },
         {
           "name": "mint_b"
+        },
+        {
+          "name": "system_program",
+          "docs": [
+            "Solana ecosystem accounts"
+          ],
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "create_pool_token_accounts",
+      "discriminator": [
+        121,
+        90,
+        65,
+        202,
+        12,
+        119,
+        182,
+        213
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "docs": [
+            "The account paying for the transaction"
+          ],
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "amm",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  97,
+                  109,
+                  109
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "amm"
+              },
+              {
+                "kind": "account",
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
+              }
+            ]
+          }
+        },
+        {
+          "name": "pool_authority",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "amm"
+              },
+              {
+                "kind": "account",
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  112,
+                  111,
+                  111,
+                  108,
+                  95,
+                  97,
+                  117,
+                  116,
+                  104,
+                  111,
+                  114,
+                  105,
+                  116,
+                  121
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_a"
+        },
+        {
+          "name": "mint_b"
+        },
+        {
+          "name": "lp_mint"
         },
         {
           "name": "pool_account_a",
@@ -361,55 +515,13 @@
           }
         },
         {
-          "name": "payer",
-          "docs": [
-            "The account paying for all rents"
-          ],
-          "writable": true,
-          "signer": true
-        },
-        {
-          "name": "system_program",
-          "docs": [
-            "Solana ecosystem accounts"
-          ],
-          "address": "11111111111111111111111111111111"
-        },
-        {
-          "name": "associated_token_program",
-          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
-        },
-        {
-          "name": "token_program",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-        }
-      ],
-      "args": []
-    },
-    {
-      "name": "create_token_accounts",
-      "discriminator": [
-        163,
-        216,
-        49,
-        204,
-        97,
-        16,
-        80,
-        167
-      ],
-      "accounts": [
-        {
-          "name": "token_account",
-          "docs": [
-            "The token account to create"
-          ],
+          "name": "pool_lp_account",
           "writable": true,
           "pda": {
             "seeds": [
               {
                 "kind": "account",
-                "path": "authority"
+                "path": "pool_authority"
               },
               {
                 "kind": "const",
@@ -450,7 +562,7 @@
               },
               {
                 "kind": "account",
-                "path": "mint"
+                "path": "lp_mint"
               }
             ],
             "program": {
@@ -493,27 +605,6 @@
           }
         },
         {
-          "name": "mint",
-          "docs": [
-            "The mint for the token account"
-          ]
-        },
-        {
-          "name": "authority",
-          "docs": [
-            "The authority for the token account"
-          ],
-          "signer": true
-        },
-        {
-          "name": "payer",
-          "docs": [
-            "The account paying for the transaction"
-          ],
-          "writable": true,
-          "signer": true
-        },
-        {
           "name": "system_program",
           "docs": [
             "Solana ecosystem accounts"
@@ -521,12 +612,12 @@
           "address": "11111111111111111111111111111111"
         },
         {
-          "name": "token_program",
-          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
-        },
-        {
           "name": "associated_token_program",
           "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "token_program",
+          "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
         }
       ],
       "args": []
@@ -558,8 +649,11 @@
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "Amm"
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
               }
             ]
           }
@@ -1172,6 +1266,7 @@
         },
         {
           "name": "user",
+          "writable": true,
           "signer": true
         },
         {
@@ -1202,16 +1297,16 @@
       ]
     },
     {
-      "name": "swap_exact_tokens_for_tokens",
+      "name": "swap",
       "discriminator": [
-        249,
-        86,
-        253,
-        50,
-        177,
-        221,
-        73,
-        162
+        248,
+        198,
+        158,
+        145,
+        225,
+        117,
+        135,
+        200
       ],
       "accounts": [
         {
@@ -1228,8 +1323,11 @@
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "Amm"
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
               }
             ]
           }
@@ -1720,11 +1818,20 @@
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "Amm"
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
               }
             ]
           }
+        },
+        {
+          "name": "mint_a"
+        },
+        {
+          "name": "mint_b"
         },
         {
           "name": "admin",
@@ -1766,11 +1873,20 @@
               },
               {
                 "kind": "account",
-                "path": "amm.pool_id",
-                "account": "Amm"
+                "path": "mint_a"
+              },
+              {
+                "kind": "account",
+                "path": "mint_b"
               }
             ]
           }
+        },
+        {
+          "name": "mint_a"
+        },
+        {
+          "name": "mint_b"
         },
         {
           "name": "admin",
@@ -1869,9 +1985,14 @@
           {
             "name": "pool_id",
             "docs": [
-              "The unique pool identifier"
+              "The unique pool identifier (fixed size array)"
             ],
-            "type": "string"
+            "type": {
+              "array": [
+                "u8",
+                64
+              ]
+            }
           },
           {
             "name": "admin",
@@ -1961,6 +2082,13 @@
               "Total liquidity in the pool"
             ],
             "type": "u64"
+          },
+          {
+            "name": "pool_authority_bump",
+            "docs": [
+              "Pool authority bump for deterministic derivation"
+            ],
+            "type": "u8"
           }
         ]
       }

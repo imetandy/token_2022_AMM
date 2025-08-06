@@ -62,10 +62,15 @@ pub mod amm {
         Ok(())
     }
 
-    pub fn create_token_accounts(
-        ctx: Context<CreateTokenAccounts>
+    pub fn create_pool_token_accounts(
+        ctx: Context<CreatePoolTokenAccounts>
     ) -> Result<()> {
-        ctx.accounts.create_token_accounts()?;
+        msg!("Instruction: CreatePoolTokenAccounts");
+        msg!("Mint A: {}", ctx.accounts.mint_a.key());
+        msg!("Mint B: {}", ctx.accounts.mint_b.key());
+        msg!("LP Mint: {}", ctx.accounts.lp_mint.key());
+        msg!("Pool Authority: {}", ctx.accounts.pool_authority.key());
+        ctx.accounts.create_pool_token_accounts()?;
         Ok(())
     }
 
@@ -75,13 +80,13 @@ pub mod amm {
         ctx.accounts.deposit_liquidity(amount_a, amount_b)
     }
     
-    pub fn swap_exact_tokens_for_tokens(
-        ctx: Context<SwapExactTokensForTokens>,
+    pub fn swap(
+        ctx: Context<Swap>,
         swap_a: bool,
         input_amount: u64,
         min_output_amount: u64,
     ) -> Result<()> {
-        ctx.accounts.swap_exact_tokens_for_tokens(
+        ctx.accounts.swap(
             swap_a,
             input_amount,
             min_output_amount,

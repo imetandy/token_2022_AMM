@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{Token2022, TokenAccount, Mint, mint_to, MintTo, transfer, Transfer},
+    token_interface::{Token2022, TokenAccount, Mint, mint_to, MintTo, transfer_checked, TransferChecked},
 };
 use crate::{
     constants::{POOL_AUTHORITY_SEED, AMM_SEED},
@@ -49,7 +49,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
-        constraint = pool_account_a.mint == pool.mint_a @ AmmError::InvalidPool,
+        //constraint = pool_account_a.key() == pool.vault_a @ AmmError::InvalidPool,
         associated_token::mint = mint_a,
         associated_token::authority = pool_authority,
     )]
@@ -57,7 +57,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
-        constraint = pool_account_b.mint == pool.mint_b @ AmmError::InvalidPool,
+        //constraint = pool_account_b.key() == pool.vault_b @ AmmError::InvalidPool,
         associated_token::mint = mint_b,
         associated_token::authority = pool_authority,
     )]
@@ -65,7 +65,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
-        constraint = user_account_a.mint == pool.mint_a @ AmmError::InvalidPool,
+        //constraint = user_account_a.mint == pool.mint_a @ AmmError::InvalidPool,
         associated_token::mint = mint_a,
         associated_token::authority = user,
     )]
@@ -73,7 +73,7 @@ pub struct DepositLiquidity<'info> {
 
     #[account(
         mut,
-        constraint = user_account_b.mint == pool.mint_b @ AmmError::InvalidPool,
+        //constraint = user_account_b.mint == pool.mint_b @ AmmError::InvalidPool,
         associated_token::mint = mint_b,
         associated_token::authority = user,
     )]
@@ -130,30 +130,32 @@ impl<'info> DepositLiquidity<'info> {
     fn transfer_tokens_to_pool(&self, amount_a: u64, amount_b: u64) -> Result<()> {
         // Transfer token A
         if amount_a > 0 {
-            let cpi_accounts = Transfer {
+            let cpi_accounts = TransferChecked {
                 from: self.user_account_a.to_account_info(),
                 to: self.pool_account_a.to_account_info(),
                 authority: self.user.to_account_info(),
+                mint: self.mint_a.to_account_info(),
             };
             let cpi_ctx = CpiContext::new(
                 self.token_program.to_account_info(),
                 cpi_accounts,
             );
-            transfer(cpi_ctx, amount_a)?;
+            transfer_checked(cpi_ctx, amount_a, 6)?;
         }
         
         // Transfer token B
         if amount_b > 0 {
-            let cpi_accounts = Transfer {
+            let cpi_accounts = TransferChecked {
                 from: self.user_account_b.to_account_info(),
                 to: self.pool_account_b.to_account_info(),
                 authority: self.user.to_account_info(),
+                mint: self.mint_b.to_account_info(),
             };
             let cpi_ctx = CpiContext::new(
                 self.token_program.to_account_info(),
                 cpi_accounts,
             );
-            transfer(cpi_ctx, amount_b)?;
+            transfer_checked(cpi_ctx, amount_b, 6)?;
         }
         
         Ok(())

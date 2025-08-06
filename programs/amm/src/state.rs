@@ -50,8 +50,10 @@ pub struct Pool {
     pub lp_mint: Pubkey,
     /// Total liquidity in the pool
     pub total_liquidity: u64,
+    /// Pool authority bump for deterministic derivation
+    pub pool_authority_bump: u8,
 }
 
 impl Pool {
-    pub const LEN: usize = 8 + 32 + 32 + 32 + 32 + 32 + 32 + 8; // 8 (discriminator) + 32 (amm) + 32 (mint_a) + 32 (mint_b) + 32 (vault_a) + 32 (vault_b) + 32 (lp_mint) + 8 (total_liquidity)
+    pub const LEN: usize = 8 + 32 + 32 + 32 + 32 + 32 + 32 + 8 + 1; // 8 (discriminator) + 32 (amm) + 32 (mint_a) + 32 (mint_b) + 32 (vault_a) + 32 (vault_b) + 32 (lp_mint) + 8 (total_liquidity) + 1 (pool_authority_bump)
 } 

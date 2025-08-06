@@ -11,7 +11,7 @@ use crate::{
 
 #[derive(Accounts)]
 #[instruction(swap_a: bool, input_amount: u64, min_output_amount: u64)]
-pub struct SwapExactTokensForTokens<'info> {
+pub struct Swap<'info> {
     #[account(
         seeds = [
             AMM_SEED,
@@ -86,13 +86,13 @@ pub struct SwapExactTokensForTokens<'info> {
     pub token_program: Program<'info, Token2022>,
 }
 
-impl<'info> SwapExactTokensForTokens<'info> {
-    pub fn swap_exact_tokens_for_tokens(
+impl<'info> Swap<'info> {
+    pub fn swap(
         &mut self,
         swap_a: bool,
         input_amount: u64,
         min_output_amount: u64,
-        _bumps: &SwapExactTokensForTokensBumps,
+        _bumps: &SwapBumps,
     ) -> Result<()> {
         msg!("Swapping {} tokens", input_amount);
         msg!("Swap direction: {}", if swap_a { "A to B" } else { "B to A" });
