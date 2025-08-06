@@ -1096,7 +1096,8 @@ export type Amm = {
           }
         },
         {
-          "name": "lpMint"
+          "name": "lpMint",
+          "writable": true
         },
         {
           "name": "user",

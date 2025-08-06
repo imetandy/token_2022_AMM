@@ -957,7 +957,7 @@ export class WalletClientNew {
           { pubkey: userAccountB, isSigner: false, isWritable: true },             // 8: user_account_b
           { pubkey: userLiquidityAccount, isSigner: false, isWritable: true },     // 9: user_lp_account
           { pubkey: poolLpAccount, isSigner: false, isWritable: true },            // 10: pool_lp_account
-          { pubkey: mintLiquidityKeypair.publicKey, isSigner: false, isWritable: false }, // 11: lp_mint
+          { pubkey: mintLiquidityKeypair.publicKey, isSigner: false, isWritable: true }, // 11: lp_mint
           { pubkey: walletPublicKey, isSigner: true, isWritable: false },          // 12: user
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // 13: system_program
           { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false }, // 14: associated_token_program
@@ -1262,7 +1262,7 @@ export class WalletClientNew {
         { pubkey: userAccountB, isSigner: false, isWritable: true },
         { pubkey: userLiquidityAccount, isSigner: false, isWritable: true },
         { pubkey: poolLiquidityAccount, isSigner: false, isWritable: true },
-        { pubkey: mintLiquidity, isSigner: false, isWritable: false },
+        { pubkey: mintLiquidity, isSigner: false, isWritable: true },
         { pubkey: walletPublicKey, isSigner: true, isWritable: true },
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
         { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
