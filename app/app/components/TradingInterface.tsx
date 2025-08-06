@@ -2,9 +2,7 @@
 
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { WalletNotConnectedError } from '@solana/wallet-adapter-base'
-import { Keypair, PublicKey } from '@solana/web3.js'
-import { createRpcClient, Token2022Amm } from '../config/program'
+import { PublicKey } from '@solana/web3.js'
 import { WalletClientNew } from '../utils/wallet-client-new'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
@@ -19,7 +17,7 @@ interface TradingInterfaceProps {
 }
 
 export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddress, canTrade }: TradingInterfaceProps) {
-  const { publicKey, sendTransaction, signTransaction } = useWallet()
+  const { publicKey, signTransaction } = useWallet()
   const { connection } = useConnection()
   
   const [swapData, setSwapData] = useState({

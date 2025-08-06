@@ -8,6 +8,96 @@
   },
   "instructions": [
     {
+      "name": "execute_transfer_hook",
+      "discriminator": [
+        120,
+        157,
+        67,
+        141,
+        88,
+        144,
+        143,
+        220
+      ],
+      "accounts": [
+        {
+          "name": "source_token",
+          "docs": [
+            "Source token account (required for token transfer)"
+          ]
+        },
+        {
+          "name": "mint",
+          "docs": [
+            "The mint being transferred"
+          ]
+        },
+        {
+          "name": "destination_token",
+          "docs": [
+            "Destination token account (required for token transfer)"
+          ]
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Source token account owner (can be SystemAccount or PDA owned by another program)"
+          ]
+        },
+        {
+          "name": "extra_account_meta_list",
+          "docs": [
+            "ExtraAccountMetaList Account (required for transfer hook)"
+          ],
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  101,
+                  120,
+                  116,
+                  114,
+                  97,
+                  45,
+                  97,
+                  99,
+                  99,
+                  111,
+                  117,
+                  110,
+                  116,
+                  45,
+                  109,
+                  101,
+                  116,
+                  97,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint"
+              }
+            ]
+          }
+        },
+        {
+          "name": "mint_trade_counter",
+          "docs": [
+            "Mint trade counter account (extra account from ExtraAccountMetaList)"
+          ],
+          "writable": true
+        }
+      ],
+      "args": [
+        {
+          "name": "amount",
+          "type": "u64"
+        }
+      ]
+    },
+    {
       "name": "initialize_mint_trade_counter",
       "discriminator": [
         22,
@@ -87,37 +177,58 @@
       ],
       "accounts": [
         {
+          "name": "source_token",
+          "docs": [
+            "Source token account (required for token transfer)"
+          ]
+        },
+        {
           "name": "mint",
           "docs": [
             "The mint being transferred"
           ]
         },
         {
-          "name": "mint_trade_counter",
-          "writable": true,
+          "name": "destination_token",
+          "docs": [
+            "Destination token account (required for token transfer)"
+          ]
+        },
+        {
+          "name": "owner",
+          "docs": [
+            "Source token account owner (can be SystemAccount or PDA owned by another program)"
+          ]
+        },
+        {
+          "name": "extra_account_meta_list",
+          "docs": [
+            "ExtraAccountMetaList Account (required for transfer hook)"
+          ],
           "pda": {
             "seeds": [
               {
                 "kind": "const",
                 "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  45,
+                  101,
+                  120,
                   116,
                   114,
                   97,
-                  100,
-                  101,
                   45,
+                  97,
+                  99,
                   99,
                   111,
                   117,
                   110,
                   116,
+                  45,
+                  109,
                   101,
-                  114
+                  116,
+                  97,
+                  115
                 ]
               },
               {
@@ -126,6 +237,13 @@
               }
             ]
           }
+        },
+        {
+          "name": "mint_trade_counter",
+          "docs": [
+            "Mint trade counter account (extra account from ExtraAccountMetaList)"
+          ],
+          "writable": true
         }
       ],
       "args": [

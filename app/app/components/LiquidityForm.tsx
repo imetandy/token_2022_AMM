@@ -2,11 +2,12 @@
 
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { Keypair, PublicKey } from '@solana/web3.js'
-import { AMMClient } from '../utils/amm-client'
+  import { PublicKey } from '@solana/web3.js'
 import { TransactionResult } from '../utils/transaction-utils'
 import { createFundedKeypair } from '../utils/devnet-utils'
+import { AMM_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID } from '../config/program'
 import TransactionResultComponent from './TransactionResult'
+import { WalletClientNew } from '../utils/wallet-client-new'
 
 interface LiquidityFormProps {
   tokenA?: string | null
@@ -55,7 +56,7 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
       console.log('Token B:', tokenB)
 
       // Create AMM client
-      const ammClient = new AMMClient(connection)
+      const ammClient = new WalletClientNew(connection)
       
       // Create a funded keypair for the payer (for demo purposes)
       console.log('Creating funded keypair for demo...')
@@ -66,14 +67,58 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
       const amountA = Math.floor(parseFloat(liquidityData.amountA) * 1e6)
       const amountB = Math.floor(parseFloat(liquidityData.amountB) * 1e6)
       
+      // Get pool data to extract actual mint addresses
+      const poolAccountInfo = await connection.getAccountInfo(new PublicKey(poolAddress));
+      if (!poolAccountInfo) {
+        throw new Error('Pool not found');
+      }
+      const poolData = poolAccountInfo.data;
+      
+      // Extract mint addresses from pool data
+      // Pool structure: discriminator(8) + amm(32) + mint_a(32) + mint_b(32) + vault_a(32) + vault_b(32) + lp_mint(32) + total_liquidity(8)
+      const poolMintA = new PublicKey(poolData.slice(8 + 32, 8 + 32 + 32));
+      const poolMintB = new PublicKey(poolData.slice(8 + 32 + 32, 8 + 32 + 32 + 32));
+      const lpMintAddress = new PublicKey(poolData.slice(8 + 32 + 32 + 32 + 32 + 32, 8 + 32 + 32 + 32 + 32 + 32 + 32));
+
+      // Derive AMM ID using actual mint addresses from pool
+      const [ammId] = PublicKey.findProgramAddressSync(
+        [
+          Buffer.from('amm'),
+          poolMintA.toBuffer(),
+          poolMintB.toBuffer()
+        ],
+        new PublicKey(AMM_PROGRAM_ID)
+      );
+
+      console.log('=== LIQUIDITY FORM DEBUG ===');
+      console.log('Pool mint A (stored):', poolMintA.toString());
+      console.log('Pool mint B (stored):', poolMintB.toString());
+      console.log('Original token A:', tokenA);
+      console.log('Original token B:', tokenB);
+      console.log('AMM ID:', ammId.toString());
+      console.log('LP mint address:', lpMintAddress.toString());
+      console.log('Using original tokens as instruction parameters');
+
+
+
       // Add liquidity
+      // Use the pool's stored mint addresses as instruction parameters (mint_a, mint_b)
+      // The Rust program expects the instruction parameters to match the pool's stored mints
       const result = await ammClient.depositLiquidity(
-        payerKeypair,
+        payerKeypair.publicKey,
+        ammId, // Pass the AMM ID
         new PublicKey(poolAddress),
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
-        amountA,
-        amountB
+        poolMintA, // Use pool's stored mint A
+        poolMintB, // Use pool's stored mint B
+        lpMintAddress,
+        BigInt(amountA),
+        BigInt(amountB),
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint A
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint B
+        async (transaction) => {
+          // For demo purposes, we're using a funded keypair, so we don't need to sign
+          return transaction
+        }
       )
 
       setTransactionResult(result)

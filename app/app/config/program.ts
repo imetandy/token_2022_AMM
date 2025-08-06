@@ -1,6 +1,3 @@
-// Program configuration for Token-2022 AMM with three-program architecture
-import { Token2022Amm } from '../types';
-
 // Program IDs for the three-program architecture
 export const TOKEN_SETUP_PROGRAM_ID = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp";
 export const AMM_PROGRAM_ID = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos";
@@ -32,6 +29,3 @@ import { createSolanaRpc } from '@solana/rpc';
 export const createRpcClient = () => {
   return createSolanaRpc(RPC_ENDPOINT);
 };
-
-// Export the program types
-export type { Token2022Amm }; 

@@ -52,6 +52,18 @@ export class WalletClientNew {
       const mintKeypair = Keypair.generate()
       console.log('Mint keypair generated:', mintKeypair.publicKey.toString())
 
+      // Generate the extra account meta list PDA for the new mint
+      const [extraAccountMetaListPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('extra-account-metas'), mintKeypair.publicKey.toBuffer()],
+        this.tokenSetupProgramId
+      );
+
+      // Generate the mint trade counter PDA for the new mint
+      const [mintTradeCounterPda] = PublicKey.findProgramAddressSync(
+        [Buffer.from('mint-trade-counter'), mintKeypair.publicKey.toBuffer()],
+        this.tokenSetupProgramId
+      );
+
       // Create token with hook instruction using token_setup program
       const createTokenIx = {
         programId: this.tokenSetupProgramId,
@@ -60,6 +72,8 @@ export class WalletClientNew {
           { pubkey: walletPublicKey, isSigner: true, isWritable: false },
           { pubkey: walletPublicKey, isSigner: true, isWritable: true },
           { pubkey: this.counterHookProgramId, isSigner: false, isWritable: false },
+          { pubkey: extraAccountMetaListPda, isSigner: false, isWritable: true },
+          { pubkey: mintTradeCounterPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false },
           { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false }
@@ -79,68 +93,16 @@ export class WalletClientNew {
         ])
       };
 
-      // Generate the extra account meta list PDA for the new mint
-      const [extraAccountMetaListPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('extra-account-metas'), mintKeypair.publicKey.toBuffer()],
-        this.tokenSetupProgramId
-      );
 
-      // Generate the mint trade counter PDA for the new mint
-      const [mintTradeCounterPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('mint-trade-counter'), mintKeypair.publicKey.toBuffer()],
-        this.counterHookProgramId
-      );
-
-      console.log('Extra account meta list PDA:', extraAccountMetaListPda.toString());
-      console.log('Mint trade counter PDA:', mintTradeCounterPda.toString());
-
-      // Create initialize extra account meta list instruction
-      const initExtraAccountMetaIx = {
-        programId: this.tokenSetupProgramId,
-        keys: [
-          { pubkey: walletPublicKey, isSigner: true, isWritable: true }, // payer
-          { pubkey: extraAccountMetaListPda, isSigner: false, isWritable: true }, // extraAccountMetaList
-          { pubkey: mintKeypair.publicKey, isSigner: false, isWritable: false }, // mint
-          { pubkey: mintTradeCounterPda, isSigner: false, isWritable: false }, // mintTradeCounter
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false } // systemProgram
-        ],
-        data: Buffer.from([
-          // Instruction discriminator for initializeExtraAccountMetaList
-          92, 197, 174, 197, 41, 124, 19, 3
-        ])
-      };
-
-      // Create initialize mint trade counter instruction
-      const initMintTradeCounterIx = {
-        programId: this.counterHookProgramId,
-        keys: [
-          { pubkey: walletPublicKey, isSigner: true, isWritable: true }, // payer
-          { pubkey: mintKeypair.publicKey, isSigner: false, isWritable: false }, // mint
-          { pubkey: mintTradeCounterPda, isSigner: false, isWritable: true }, // mintTradeCounter
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false } // systemProgram
-        ],
-        data: Buffer.from([
-          // Instruction discriminator for initializeMintTradeCounter
-          22, 209, 170, 141, 84, 237, 5, 252
-        ])
-      };
 
       // Create the transaction
       const transaction = new Transaction()
       
-      // Add create token instruction
+      // Add create token instruction (now includes transfer hook account initialization)
       transaction.add(createTokenIx)
-      
-      // Add initialize extra account meta list instruction
-      transaction.add(initExtraAccountMetaIx)
-      
-      // Add initialize mint trade counter instruction
-      transaction.add(initMintTradeCounterIx)
 
-      console.log('Transaction created with 3 instructions')
-      console.log('1. Create token with hook')
-      console.log('2. Initialize extra account meta list')
-      console.log('3. Initialize mint trade counter')
+      console.log('Transaction created with 1 instruction')
+      console.log('1. Create token with hook (includes transfer hook account initialization)')
 
       // Set fee payer and recent blockhash before signing
       transaction.feePayer = walletPublicKey
@@ -727,19 +689,48 @@ export class WalletClientNew {
       )
       console.log('Pool Authority:', poolAuthority.toString())
 
+      // Derive associated token accounts for the pool
+      const poolAccountA = getAssociatedTokenAddressSync(
+        mintA,
+        poolAuthority,
+        true,
+        new PublicKey(TOKEN_2022_PROGRAM_ID)
+      );
+
+      const poolAccountB = getAssociatedTokenAddressSync(
+        mintB,
+        poolAuthority,
+        true,
+        new PublicKey(TOKEN_2022_PROGRAM_ID)
+      );
+
+      const poolLpAccount = getAssociatedTokenAddressSync(
+        lpMint,
+        poolAuthority,
+        true,
+        new PublicKey(TOKEN_2022_PROGRAM_ID)
+      );
+
+      console.log('Pool Account A:', poolAccountA.toString());
+      console.log('Pool Account B:', poolAccountB.toString());
+      console.log('Pool LP Account:', poolLpAccount.toString());
+
       const instruction = {
         programId: this.ammProgramId,
         keys: [
-          { pubkey: ammAddress, isSigner: false, isWritable: false },
-          { pubkey: poolAddress, isSigner: false, isWritable: true },
-          { pubkey: poolAuthority, isSigner: false, isWritable: false },
-          { pubkey: lpMint, isSigner: false, isWritable: false },
-          { pubkey: mintA, isSigner: false, isWritable: false },
-          { pubkey: mintB, isSigner: false, isWritable: false },
-          { pubkey: walletPublicKey, isSigner: true, isWritable: true },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false }
+          { pubkey: walletPublicKey, isSigner: true, isWritable: true },        // 0: payer
+          { pubkey: ammAddress, isSigner: false, isWritable: false },           // 1: amm
+          { pubkey: poolAddress, isSigner: false, isWritable: true },           // 2: pool
+          { pubkey: poolAuthority, isSigner: false, isWritable: false },        // 3: pool_authority
+          { pubkey: mintA, isSigner: false, isWritable: false },                // 4: mint_a
+          { pubkey: mintB, isSigner: false, isWritable: false },                // 5: mint_b
+          { pubkey: lpMint, isSigner: false, isWritable: false },               // 6: lp_mint
+          { pubkey: poolAccountA, isSigner: false, isWritable: true },          // 7: pool_account_a
+          { pubkey: poolAccountB, isSigner: false, isWritable: true },          // 8: pool_account_b
+          { pubkey: poolLpAccount, isSigner: false, isWritable: true },         // 9: pool_lp_account
+          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // 10: system_program
+          { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false }, // 11: associated_token_program
+          { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false } // 12: token_program
         ],
         data: Buffer.from([
           // Instruction discriminator for createPoolTokenAccounts
@@ -1157,12 +1148,15 @@ export class WalletClientNew {
 
   async depositLiquidity(
     walletPublicKey: PublicKey,
+    ammId: PublicKey,
     poolAddress: PublicKey,
     mintA: PublicKey,
     mintB: PublicKey,
     mintLiquidity: PublicKey,
     amountA: bigint,
     amountB: bigint,
+    transferHookProgramIdA: PublicKey,
+    transferHookProgramIdB: PublicKey,
     signTransaction: (transaction: Transaction) => Promise<Transaction>
   ): Promise<TransactionResult> {
     try {
@@ -1191,16 +1185,6 @@ export class WalletClientNew {
         walletPublicKey,
         true,
         new PublicKey(TOKEN_2022_PROGRAM_ID)
-      )
-
-      // Derive AMM account from pool address
-      const [ammId] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from('amm'),
-          mintA.toBuffer(),
-          mintB.toBuffer()
-        ],
-        this.ammProgramId
       )
 
       // Derive pool authority
@@ -1237,11 +1221,59 @@ export class WalletClientNew {
         new PublicKey(TOKEN_2022_PROGRAM_ID)
       )
 
+      // Derive transfer hook accounts for mint A
+      const [extraAccountMetaListA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('extra-account-metas'), mintA.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
+      const [mintTradeCounterA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('mint-trade-counter'), mintA.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
+      // Derive transfer hook accounts for mint B
+      const [extraAccountMetaListB] = PublicKey.findProgramAddressSync(
+        [Buffer.from('extra-account-metas'), mintB.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
+      const [mintTradeCounterB] = PublicKey.findProgramAddressSync(
+        [Buffer.from('mint-trade-counter'), mintB.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
       // Get the instruction definition from the IDL
       const idl = require('../types/amm.json')
       const depositLiquidityInstruction = idl.instructions.find(
         (ix: any) => ix.name === 'deposit_liquidity'
       )
+
+      // Add transfer hook program accounts to the keys array
+      const keys = [
+        { pubkey: ammId, isSigner: false, isWritable: false },
+        { pubkey: poolAddress, isSigner: false, isWritable: false },
+        { pubkey: poolAuthority, isSigner: false, isWritable: false },
+        { pubkey: mintA, isSigner: false, isWritable: false },
+        { pubkey: mintB, isSigner: false, isWritable: false },
+        { pubkey: poolAccountA, isSigner: false, isWritable: true },
+        { pubkey: poolAccountB, isSigner: false, isWritable: true },
+        { pubkey: userAccountA, isSigner: false, isWritable: true },
+        { pubkey: userAccountB, isSigner: false, isWritable: true },
+        { pubkey: userLiquidityAccount, isSigner: false, isWritable: true },
+        { pubkey: poolLiquidityAccount, isSigner: false, isWritable: true },
+        { pubkey: mintLiquidity, isSigner: false, isWritable: false },
+        { pubkey: walletPublicKey, isSigner: true, isWritable: true },
+        { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
+        { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+        { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false },
+        { pubkey: extraAccountMetaListA, isSigner: false, isWritable: false },
+        { pubkey: mintTradeCounterA, isSigner: false, isWritable: true },
+        { pubkey: extraAccountMetaListB, isSigner: false, isWritable: false },
+        { pubkey: mintTradeCounterB, isSigner: false, isWritable: true },
+        { pubkey: transferHookProgramIdA, isSigner: false, isWritable: false },
+        { pubkey: transferHookProgramIdB, isSigner: false, isWritable: false },
+      ]
 
       if (!depositLiquidityInstruction) {
         throw new Error('deposit_liquidity instruction not found in IDL')
@@ -1249,24 +1281,7 @@ export class WalletClientNew {
 
       const depositLiquidityIx = {
         programId: this.ammProgramId,
-        keys: [
-          { pubkey: ammId, isSigner: false, isWritable: false },
-          { pubkey: poolAddress, isSigner: false, isWritable: true },
-          { pubkey: poolAuthority, isSigner: false, isWritable: false },
-          { pubkey: mintA, isSigner: false, isWritable: false },
-          { pubkey: mintB, isSigner: false, isWritable: false },
-          { pubkey: poolAccountA, isSigner: false, isWritable: true },
-          { pubkey: poolAccountB, isSigner: false, isWritable: true },
-          { pubkey: userAccountA, isSigner: false, isWritable: true },
-          { pubkey: userAccountB, isSigner: false, isWritable: true },
-          { pubkey: userLiquidityAccount, isSigner: false, isWritable: true },
-          { pubkey: poolLiquidityAccount, isSigner: false, isWritable: true },
-          { pubkey: mintLiquidity, isSigner: false, isWritable: false },
-          { pubkey: walletPublicKey, isSigner: true, isWritable: false },
-          { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false }
-        ],
+        keys: keys,
         data: Buffer.concat([
           Buffer.from(depositLiquidityInstruction.discriminator),
           // Amount A (u64)

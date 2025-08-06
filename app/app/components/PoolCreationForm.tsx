@@ -2,9 +2,8 @@
 
 import { useState, useRef } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { WalletNotConnectedError } from '@solana/wallet-adapter-base'
 import { Keypair, PublicKey } from '@solana/web3.js'
-import { AMM_PROGRAM_ID, createRpcClient, Token2022Amm } from '../config/program'
+import { AMM_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID } from '../config/program'
 import { WalletClientNew } from '../utils/wallet-client-new'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
@@ -17,7 +16,7 @@ interface PoolCreationFormProps {
 }
 
 export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, createdPool }: PoolCreationFormProps) {
-  const { publicKey, sendTransaction, signTransaction } = useWallet()
+  const { publicKey, signTransaction } = useWallet()
   const { connection } = useConnection()
   
   const [isLoading, setIsLoading] = useState(false)
@@ -46,12 +45,13 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       // Create Wallet client
       const walletClient = new WalletClientNew(connection)
       
-      // Generate a unique pool ID
-      const poolId = `pool-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`
-      
-      // Derive AMM PDA using pool ID
+      // Derive AMM PDA using mints as seeds
       const [ammPda] = PublicKey.findProgramAddressSync(
-        [Buffer.from('amm'), Buffer.from(poolId)],
+        [
+          Buffer.from('amm'),
+          new PublicKey(tokenA).toBuffer(),
+          new PublicKey(tokenB).toBuffer()
+        ],
         new PublicKey(AMM_PROGRAM_ID)
       )
       
@@ -65,16 +65,7 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
         new PublicKey(AMM_PROGRAM_ID)
       )
       
-      // Derive pool authority PDA
-      const [poolAuthorityPda] = PublicKey.findProgramAddressSync(
-        [
-          ammPda.toBuffer(),
-          new PublicKey(tokenA).toBuffer(),
-          new PublicKey(tokenB).toBuffer(),
-          Buffer.from('pool_authority')
-        ],
-        new PublicKey(AMM_PROGRAM_ID)
-      )
+
       
       // Generate keypair for liquidity mint (this needs to be a signer)
       const mintLiquidityKeypair = Keypair.generate()
@@ -87,10 +78,13 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       const liquidityAmount = Math.floor(parseFloat(initialLiquidity) * 1e6)
 
       // Step 1: Create AMM
-      console.log('Creating AMM with pool ID:', poolId)
+      console.log('Creating AMM with mints:', tokenA, tokenB)
+      console.log('Token A address:', new PublicKey(tokenA).toString())
+      console.log('Token B address:', new PublicKey(tokenB).toString())
       const ammResult = await walletClient.createAMM(
         publicKey,
-        poolId,
+        new PublicKey(tokenA),
+        new PublicKey(tokenB),
         solFee,
         solFeeCollector,
         signTransaction
@@ -104,18 +98,16 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       // Add a small delay to ensure the AMM transaction is fully processed
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Step 2: Create Pool
+      // Step 2: Create Pool (pool data and LP mint only)
       console.log('Creating Pool...')
-      const poolResult = await walletClient.createPoolWithLiquidity(
+      console.log('Pool creation - Token A address:', new PublicKey(tokenA).toString())
+      console.log('Pool creation - Token B address:', new PublicKey(tokenB).toString())
+      
+      const poolResult = await walletClient.createPool(
         publicKey,
-        ammPda,
         new PublicKey(tokenA),
         new PublicKey(tokenB),
-        poolPda, // Use the derived poolPda
-        poolAuthorityPda, // Use the derived poolAuthorityPda
         mintLiquidityKeypair,
-        liquidityAmount, // Token A amount
-        liquidityAmount,  // Token B amount (1:1 ratio)
         signTransaction
       )
 
@@ -127,17 +119,37 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       // Add a small delay to ensure the pool transaction is fully processed
       await new Promise(resolve => setTimeout(resolve, 2000))
 
-      // Step 3: Add Initial Liquidity (1:1 ratio)
+      // Step 3: Create Pool Token Accounts
+      console.log('Creating pool token accounts...')
+      const tokenAccountsResult = await walletClient.createPoolTokenAccounts(
+        publicKey,
+        new PublicKey(tokenA),
+        new PublicKey(tokenB),
+        mintLiquidityKeypair.publicKey,
+        signTransaction
+      )
+
+      if (!tokenAccountsResult.success) {
+        setTransactionResult(tokenAccountsResult)
+        return
+      }
+
+      // Add a small delay to ensure the token accounts transaction is fully processed
+      await new Promise(resolve => setTimeout(resolve, 2000))
+
+      // Step 4: Add Initial Liquidity (1:1 ratio)
       console.log('Adding initial liquidity...')
       const liquidityResult = await walletClient.depositLiquidity(
         publicKey,
-        ammPda,
+        ammPda, // Pass the AMM ID
         poolPda,
         new PublicKey(tokenA),
         new PublicKey(tokenB),
         mintLiquidityKeypair.publicKey, // Pass the liquidity mint account
-        liquidityAmount, // Token A amount
-        liquidityAmount,  // Token B amount (1:1 ratio)
+        BigInt(liquidityAmount), // Token A amount
+        BigInt(liquidityAmount),  // Token B amount (1:1 ratio)
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint A
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint B
         signTransaction
       )
 
