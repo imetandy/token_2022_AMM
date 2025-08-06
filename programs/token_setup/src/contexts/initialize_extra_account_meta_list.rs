@@ -2,6 +2,8 @@ use anchor_lang::prelude::*;
 use anchor_spl::token_interface::Mint;
 use spl_tlv_account_resolution::state::ExtraAccountMetaList;
 use counter_hook;
+use spl_tlv_account_resolution::account::ExtraAccountMeta;
+use spl_tlv_account_resolution::seeds::Seed;
 
 #[derive(Accounts)]
 pub struct InitializeExtraAccountMetaList<'info> {
@@ -13,7 +15,7 @@ pub struct InitializeExtraAccountMetaList<'info> {
         init_if_needed,
         seeds = [b"extra-account-metas", mint.key().as_ref()],
         bump,
-        space = 32, // Use a reasonable fixed size for ExtraAccountMetaList
+        space = 128, // Increased space for ExtraAccountMetaList with 1 account
         payer = payer
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
@@ -46,22 +48,36 @@ impl<'info> InitializeExtraAccountMetaList<'info> {
         
         let extra_account_meta_list_data = &mut self.extra_account_meta_list.data.borrow_mut();
         msg!("Extra account meta list data length: {}", extra_account_meta_list_data.len());
-        msg!("Expected size: 32 bytes");
+        msg!("Expected size: 128 bytes");
         
         // Check if we have enough space
-        if extra_account_meta_list_data.len() < 32 {
+        if extra_account_meta_list_data.len() < 128 {
             msg!("ERROR: Not enough space for ExtraAccountMetaList");
-            msg!("Required: 32 bytes, Available: {} bytes", extra_account_meta_list_data.len());
+            msg!("Required: 128 bytes, Available: {} bytes", extra_account_meta_list_data.len());
             return Err(anchor_lang::error::ErrorCode::AccountNotEnoughKeys.into());
         }
         
         msg!("Attempting to initialize ExtraAccountMetaList...");
-        ExtraAccountMetaList::init::<TokenMetadata>(
-            extra_account_meta_list_data,
-            &[],
+        
+        // Create extra account meta for the mint trade counter
+        
+        
+        let mint_trade_counter_meta = ExtraAccountMeta::new_with_seeds(
+            &[
+                Seed::Literal { bytes: b"mint-trade-counter".to_vec() },
+                Seed::AccountKey { index: 1 }, // mint account at position 1 in Execute instruction
+            ],
+            false, // not a signer
+            true,  // is writable
         )?;
         
-        msg!("ExtraAccountMetaList initialized with 0 accounts (empty)");
+        ExtraAccountMetaList::init::<TokenMetadata>(
+            extra_account_meta_list_data,
+            &[mint_trade_counter_meta],
+        )?;
+        
+        msg!("ExtraAccountMetaList initialized with 1 account:");
+        msg!("  - Mint trade counter: {}", self.mint_trade_counter.key());
         msg!("Hook owner: {}", self.payer.key());
         msg!("=== Initialization Complete ===");
         

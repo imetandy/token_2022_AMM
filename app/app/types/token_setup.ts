@@ -28,33 +28,20 @@ export type TokenSetup = {
       "accounts": [
         {
           "name": "mint",
-          "docs": [
-            "The mint to be created"
-          ],
           "writable": true,
           "signer": true
         },
         {
           "name": "authority",
-          "docs": [
-            "The mint authority - can be any signer"
-          ],
           "signer": true
         },
         {
           "name": "payer",
-          "docs": [
-            "The payer for the transaction"
-          ],
           "writable": true,
           "signer": true
         },
         {
-          "name": "counterHookProgram",
-          "docs": [
-            "The counter hook program for transfer hooks"
-          ],
-          "address": "EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi"
+          "name": "counterHookProgram"
         },
         {
           "name": "extraAccountMetaList",
@@ -129,9 +116,6 @@ export type TokenSetup = {
         },
         {
           "name": "systemProgram",
-          "docs": [
-            "Solana ecosystem accounts"
-          ],
           "address": "11111111111111111111111111111111"
         },
         {
@@ -250,38 +234,38 @@ export type TokenSetup = {
             "program": {
               "kind": "const",
               "value": [
-                3,
-                131,
-                22,
-                138,
-                55,
-                145,
-                84,
-                187,
-                120,
-                161,
-                194,
-                53,
-                190,
-                158,
-                195,
-                52,
                 236,
-                204,
-                23,
-                54,
-                155,
-                92,
-                77,
-                181,
-                253,
-                23,
-                19,
-                134,
-                182,
-                24,
+                202,
+                242,
+                135,
+                15,
+                11,
+                123,
+                251,
+                138,
+                95,
+                27,
+                41,
+                74,
+                114,
+                101,
+                84,
+                186,
+                33,
                 240,
-                107
+                213,
+                235,
+                200,
+                174,
+                103,
+                178,
+                37,
+                192,
+                231,
+                148,
+                119,
+                111,
+                207
               ]
             }
           }

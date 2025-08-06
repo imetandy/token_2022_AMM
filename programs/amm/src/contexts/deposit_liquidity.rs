@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::{
     associated_token::AssociatedToken,
-    token_interface::{Token2022, TokenAccount, Mint, mint_to, MintTo},
+    token_interface::{Token2022, TokenAccount, Mint, mint_to_checked, MintToChecked},
 };
 use anchor_spl::token_interface::spl_token_2022;
 use anchor_lang::solana_program::instruction::AccountMeta;
@@ -131,31 +131,19 @@ impl<'info> DepositLiquidity<'info> {
         amount_a: u64,
         amount_b: u64,
     ) -> Result<()> {
-        msg!("Depositing liquidity: {} token A, {} token B", amount_a, amount_b);
         
         // Transfer tokens from user to pool
         self.transfer_tokens_to_pool(amount_a, amount_b)?;
         
         // Mint LP tokens to user
-        self.mint_lp_tokens(amount_a, amount_b)?;
+        // self.mint_lp_tokens(amount_a, amount_b)?;
         
-        msg!("Liquidity deposited successfully");
         Ok(())
     }
     
     fn transfer_tokens_to_pool(&self, amount_a: u64, amount_b: u64) -> Result<()> {
         // Transfer token A with transfer hook
         if amount_a > 0 {
-            msg!("=== TRANSFER A DEBUG ===");
-            msg!("Transferring token A with transfer hook...");
-            msg!("Amount: {}", amount_a);
-            msg!("User account A: {}", self.user_account_a.key());
-            msg!("Mint A: {}", self.mint_a.key());
-            msg!("Pool account A: {}", self.pool_account_a.key());
-            msg!("User: {}", self.user.key());
-            msg!("Extra account meta list A: {}", self.extra_account_meta_list_a.key());
-            msg!("Mint trade counter A: {}", self.mint_trade_counter_a.key());
-            msg!("Transfer hook program A: {}", self.transfer_hook_program_a.key());
             
             // Create mutable transfer_checked instruction
             let mut transfer_ix = spl_token_2022::instruction::transfer_checked(
@@ -204,20 +192,13 @@ impl<'info> DepositLiquidity<'info> {
                 self.mint_trade_counter_a.to_account_info(),
             ];
             
-            msg!("=== TRANSFER A ACCOUNT INFOS DEBUG ===");
-            msg!("Account infos count: {}", account_infos.len());
-            for (i, account_info) in account_infos.iter().enumerate() {
-                msg!("Account info {}: {} (writable: {}, signer: {})", 
-                     i, account_info.key, account_info.is_writable, account_info.is_signer);
-            }
+            // Account infos prepared for transfer
             
             invoke(&transfer_ix, account_infos)?;
-            msg!("Token A transfer completed");
         }
         
         // Transfer token B with transfer hook
         if amount_b > 0 {
-            msg!("Transferring token B with transfer hook...");
             
             // Create mutable transfer_checked instruction
             let mut transfer_ix = spl_token_2022::instruction::transfer_checked(
@@ -260,7 +241,6 @@ impl<'info> DepositLiquidity<'info> {
             ];
             
             invoke(&transfer_ix, account_infos)?;
-            msg!("Token B transfer completed");
         }
         
         Ok(())
@@ -270,16 +250,33 @@ impl<'info> DepositLiquidity<'info> {
         // Calculate LP tokens to mint (simplified calculation)
         let lp_amount = (amount_a + amount_b) / 2; // Simplified for now
         
-        let cpi_accounts = MintTo {
+        // Use the stored bump from the pool state
+        let pool_authority_bump = self.pool.pool_authority_bump;
+        
+        // Create the signer seeds for the pool authority PDA
+        let amm_key = self.amm.key();
+        let mint_a_key = self.mint_a.key();
+        let mint_b_key = self.mint_b.key();
+        let authority_seeds = &[
+            amm_key.as_ref(),
+            mint_a_key.as_ref(),
+            mint_b_key.as_ref(),
+            POOL_AUTHORITY_SEED,
+            &[pool_authority_bump],
+        ];
+        let signer_seeds = &[&authority_seeds[..]];
+        
+        let cpi_accounts = MintToChecked {
             mint: self.lp_mint.to_account_info(),
             to: self.user_lp_account.to_account_info(),
             authority: self.pool_authority.to_account_info(),
         };
-        let cpi_ctx = CpiContext::new(
+        let cpi_ctx = CpiContext::new_with_signer(
             self.token_program.to_account_info(),
             cpi_accounts,
+            signer_seeds,
         );
-        mint_to(cpi_ctx, lp_amount)?;
+        mint_to_checked(cpi_ctx, lp_amount, 6)?;
         
         Ok(())
     }

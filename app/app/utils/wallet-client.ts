@@ -26,7 +26,7 @@ export class WalletClient {
   constructor(connection: Connection) {
     this.connection = connection;
     this.programId = new PublicKey(PROGRAM_ID);
-    this.counterHookProgramId = new PublicKey('EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi');
+    this.counterHookProgramId = new PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
   }
 
   async createTokenWithHook(

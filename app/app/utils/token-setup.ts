@@ -15,7 +15,7 @@ export class TokenSetup {
   constructor(connection: Connection, ammProgramId: PublicKey) {
     this.connection = connection;
     this.ammProgramId = ammProgramId;
-    this.counterHookProgramId = new PublicKey('EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi');
+    this.counterHookProgramId = new PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
   }
 
   /**

@@ -1,7 +1,7 @@
 // Program IDs for the three-program architecture
 export const TOKEN_SETUP_PROGRAM_ID = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp";
 export const AMM_PROGRAM_ID = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos";
-export const COUNTER_HOOK_PROGRAM_ID = "EiAAboUH3o19cRw4wRo2f2erCcbGtRUtq9PgNS4RGgi";
+export const COUNTER_HOOK_PROGRAM_ID = "GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ";
 
 // Legacy program ID for backward compatibility
 export const PROGRAM_ID = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL";

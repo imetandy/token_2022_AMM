@@ -58,7 +58,7 @@ export class WalletClientNew {
         this.tokenSetupProgramId
       );
 
-      // Generate the mint trade counter PDA for the new mint
+      // Generate the mint trade counter PDA for the new mint  
       const [mintTradeCounterPda] = PublicKey.findProgramAddressSync(
         [Buffer.from('mint-trade-counter'), mintKeypair.publicKey.toBuffer()],
         this.tokenSetupProgramId

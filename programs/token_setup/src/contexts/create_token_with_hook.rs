@@ -9,7 +9,7 @@ use crate::errors::TokenSetupError;
 #[derive(Accounts)]
 #[instruction(name: String, symbol: String, uri: String)]
 pub struct CreateTokenWithHook<'info> {
-    /// The mint to be created
+    /// CHECK: Mint to be created
     #[account(
         init,
         payer = payer,
@@ -22,30 +22,30 @@ pub struct CreateTokenWithHook<'info> {
     )]
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
-    /// The mint authority - can be any signer
+    /// CHECK: Mint authority - can be any signer
     #[account(
         constraint = authority.is_signer @ TokenSetupError::NotSigner
     )]
     pub authority: Signer<'info>,
 
-    /// The payer for the transaction
+    /// CHECK: Payer for the transaction
     #[account(mut)]
     pub payer: Signer<'info>,
 
-    /// The counter hook program for transfer hooks
+    /// CHECK: Counter hook program for transfer hooks
     pub counter_hook_program: UncheckedAccount<'info>,
 
-    /// CHECK: Extra account meta list for the mint
+    /// CHECK: Extra account meta list for mint
     #[account(
         init_if_needed,
         seeds = [b"extra-account-metas", mint.key().as_ref()],
         bump,
         payer = payer,
-        space = 32
+        space = 128 // Increased space for ExtraAccountMetaList with 1 account
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
 
-    /// CHECK: Mint trade counter for the mint
+    /// CHECK: Mint trade counter for mint
     #[account(
         init_if_needed,
         seeds = [b"mint-trade-counter", mint.key().as_ref()],
@@ -55,7 +55,7 @@ pub struct CreateTokenWithHook<'info> {
     )]
     pub mint_trade_counter: AccountInfo<'info>,
 
-    /// Solana ecosystem accounts
+    /// CHECK: Solana ecosystem accounts
     pub system_program: Program<'info, System>,
     pub token_program: Program<'info, Token2022>,
     pub associated_token_program: Program<'info, AssociatedToken>,
@@ -90,14 +90,26 @@ impl<'info> CreateTokenWithHook<'info> {
         msg!("Extra account meta list: {}", self.extra_account_meta_list.key());
         msg!("Mint trade counter: {}", self.mint_trade_counter.key());
         
-        // Initialize the extra account meta list
+        // Initialize the extra account meta list with mint trade counter
         let extra_account_meta_list_data = &mut self.extra_account_meta_list.data.borrow_mut();
         use spl_tlv_account_resolution::state::ExtraAccountMetaList;
+        use spl_tlv_account_resolution::account::ExtraAccountMeta;
+        use spl_tlv_account_resolution::seeds::Seed;
         use anchor_spl::token_2022_extensions::spl_token_metadata_interface::state::TokenMetadata;
+        
+        // Create extra account meta for the mint trade counter
+        let mint_trade_counter_meta = ExtraAccountMeta::new_with_seeds(
+            &[
+                Seed::Literal { bytes: b"mint-trade-counter".to_vec() },
+                Seed::AccountKey { index: 1 }, // mint account at position 1 in Execute instruction
+            ],
+            false, // not a signer
+            true,  // is writable
+        )?;
         
         ExtraAccountMetaList::init::<TokenMetadata>(
             extra_account_meta_list_data,
-            &[],
+            &[mint_trade_counter_meta],
         )?;
         
         // Initialize the mint trade counter
@@ -109,7 +121,7 @@ impl<'info> CreateTokenWithHook<'info> {
         counter_data.serialize(&mut &mut self.mint_trade_counter.data.borrow_mut()[..])?;
         
         msg!("Step 5: Transfer hook accounts initialized successfully");
-        msg!("Extra account meta list initialized with 0 accounts");
+        msg!("Extra account meta list initialized with mint trade counter");
         msg!("Mint trade counter initialized with default values");
         
         msg!("=== CreateTokenWithHook completed successfully ===");
