@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { PublicKey } from '../utils/kit'
 type Keypair = any;
@@ -10,6 +10,8 @@ import { AnchorClient } from '../utils/anchor-client'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import PoolDataDisplay from './PoolDataDisplay'
+import { createRpc } from '../config/rpc-config'
+import { fetchPool } from '../clients/amm/accounts/pool'
 
 interface PoolData {
   amm: string
@@ -41,6 +43,52 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
   const [initialLiquidity, setInitialLiquidity] = useState('100000')
   const [poolData, setPoolData] = useState<PoolData | null>(null)
   const transactionInProgress = useRef(false)
+
+  // Load pool account data and balances once a pool exists
+  useEffect(() => {
+    const loadPool = async () => {
+      if (!localCreatedPool.pool) return
+      try {
+        setIsLoading(true)
+        const rpc = createRpc()
+        const poolAccount = await fetchPool(rpc as any, localCreatedPool.pool as any)
+
+        // Map account data into UI shape
+        const basePoolData: PoolData = {
+          amm: poolAccount.data.amm as string,
+          mintA: poolAccount.data.mintA as string,
+          mintB: poolAccount.data.mintB as string,
+          vaultA: poolAccount.data.vaultA as string,
+          vaultB: poolAccount.data.vaultB as string,
+          lpMint: poolAccount.data.lpMint as string,
+          totalLiquidity: Number(poolAccount.data.totalLiquidity),
+          poolAuthorityBump: poolAccount.data.poolAuthorityBump,
+        }
+
+        // Optionally fetch live balances of the pool vaults
+        try {
+          const [balA, balB] = await Promise.all([
+            connection.getTokenAccountBalance(new PublicKey(basePoolData.vaultA)),
+            connection.getTokenAccountBalance(new PublicKey(basePoolData.vaultB)),
+          ])
+          setPoolData({
+            ...basePoolData,
+            poolTokenABalance: balA?.value?.uiAmount ?? 0,
+            poolTokenBBalance: balB?.value?.uiAmount ?? 0,
+          })
+        } catch {
+          setPoolData(basePoolData)
+        }
+      } catch (e) {
+        // If fetch fails, keep previous state
+        console.error('Failed to load pool data', e)
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    loadPool()
+  }, [localCreatedPool.pool, connection])
 
   const handleCreatePool = async () => {
     if (!publicKey || !signTransaction || !tokenA || !tokenB || !initialLiquidity) {
