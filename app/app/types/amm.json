@@ -722,10 +722,12 @@
           "name": "mint_b"
         },
         {
-          "name": "pool_account_a"
+          "name": "pool_account_a",
+          "writable": true
         },
         {
-          "name": "pool_account_b"
+          "name": "pool_account_b",
+          "writable": true
         },
         {
           "name": "user_account_a",

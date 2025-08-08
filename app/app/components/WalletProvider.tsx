@@ -5,6 +5,7 @@ import { ConnectionProvider, WalletProvider } from '@solana/wallet-adapter-react
 import { WalletModalProvider } from '@solana/wallet-adapter-react-ui'
 import dynamic from 'next/dynamic'
 import { getBestRpcEndpoint } from '../config/rpc-config'
+import { createDevKeypairAdapter } from '../utils/dev-wallet-adapter'
 
 // Import the default styles for the wallet modal
 import '@solana/wallet-adapter-react-ui/styles.css'
@@ -25,11 +26,15 @@ export const WalletContextProvider: FC<Props> = ({ children }) => {
   
   // Initialize wallets that you want to support
   // Note: Phantom and other standard wallets are automatically detected
-  const wallets = useMemo(() => [], [])
+  const wallets = useMemo(() => {
+    // Always register dev adapter; it will prompt for secret on connect if missing.
+    const dev = createDevKeypairAdapter()
+    return [dev as any]
+  }, [])
 
   return (
     <ConnectionProvider endpoint={endpoint}>
-      <WalletProvider wallets={wallets} autoConnect>
+      <WalletProvider wallets={wallets} autoConnect={false}>
         <WalletModalProviderDynamic>
           {children}
         </WalletModalProviderDynamic>

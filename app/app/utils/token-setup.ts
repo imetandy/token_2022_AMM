@@ -1,5 +1,12 @@
-import { Connection, PublicKey, Transaction, Keypair } from '@solana/web3.js';
+import { PublicKey } from './kit';
+type Connection = any;
+type Transaction = any;
+type Keypair = any;
 import { Program, AnchorProvider } from '@coral-xyz/anchor';
+import bs58 from 'bs58';
+import { createRpc, getBestRpcEndpoint } from '../config/rpc-config';
+import { createTransactionMessage, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, signTransactionMessageWithSigners, sendAndConfirmTransactionFactory } from '@solana/kit';
+import { toAddress } from './kit';
 
 export interface TokenSetupResult {
   mintAddress: string;
@@ -11,6 +18,7 @@ export class TokenSetup {
   private connection: Connection;
   private ammProgramId: PublicKey;
   private counterHookProgramId: PublicKey;
+  private rpc = createRpc();
 
   constructor(connection: Connection, ammProgramId: PublicKey) {
     this.connection = connection;
@@ -52,27 +60,20 @@ export class TokenSetup {
       ])
     };
 
-    const transaction = new Transaction();
-    transaction.add(initInstruction);
-
-    // Get the latest blockhash
-    const { blockhash } = await this.connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = walletPublicKey;
-
-    console.log('Transaction created, sending...');
-    
-    // Send the transaction
-    const signature = await this.connection.sendRawTransaction(transaction.serialize());
-    console.log('Transaction sent with signature:', signature);
-
-    // Wait for confirmation
-    const confirmation = await this.connection.confirmTransaction(signature, 'confirmed');
-    console.log('Transaction confirmed:', confirmation);
+    const { value: { blockhash, lastValidBlockHeight } } = await this.rpc.getLatestBlockhash().send();
+    let message = createTransactionMessage({ version: 0, instructions: [initInstruction as any] } as any) as any;
+    message = setTransactionMessageFeePayerSigner(message as any, walletPublicKey as any) as any;
+    message = setTransactionMessageLifetimeUsingBlockhash(message as any, { blockhash, lastValidBlockHeight } as any) as any;
+    const signed = await signTransactionMessageWithSigners(message as any, {} as any);
+    const { createSolanaRpcSubscriptions } = await import('@solana/kit');
+    const rpcSubscriptions = createSolanaRpcSubscriptions(getBestRpcEndpoint() as any);
+    const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc: this.rpc, rpcSubscriptions } as any);
+    const signature = await sendAndConfirm(signed as any, { commitment: 'confirmed', lastValidBlockHeight } as any);
+    const signatureStr = typeof signature === 'string' ? signature : '';
 
     return {
       mintAddress,
-      signature,
+      signature: signatureStr,
       tradeCounterAddress: tradeCounterPda.toString()
     };
   }
@@ -98,15 +99,18 @@ export class TokenSetup {
       console.log('Trade counter PDA:', tradeCounterPda.toString());
 
       // Get the account data
-      const accountInfo = await this.connection.getAccountInfo(tradeCounterPda);
+      const accountInfo = await this.rpc.getAccountInfo(toAddress(tradeCounterPda)).send();
       
-      if (!accountInfo) {
+      const account = accountInfo.value;
+      if (!account) {
         console.log('Trade counter account not found');
         return null;
       }
 
       // Parse the account data
-      const data = accountInfo.data;
+      const encData = account.data as unknown as [string, 'base64' | 'base58'];
+      const [encoded, encoding] = encData;
+      const data = encoding === 'base64' ? Buffer.from(encoded, 'base64') : Buffer.from(bs58.decode(encoded));
       
       // Skip discriminator (8 bytes)
       const mint = new PublicKey(data.slice(8, 40));

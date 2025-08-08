@@ -3,7 +3,8 @@
 import React, { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { TokenSetup } from '../utils/token-setup';
-import { Connection, PublicKey } from '@solana/web3.js';
+import { PublicKey } from '../utils/kit';
+type Connection = any;
 
 interface TokenSetupProps {
   connection: Connection;

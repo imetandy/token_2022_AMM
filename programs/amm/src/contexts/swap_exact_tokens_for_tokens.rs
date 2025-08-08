@@ -54,24 +54,28 @@ pub struct Swap<'info> {
     #[account(mut,
         associated_token::mint = mint_a,
         associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
     )]
     pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut,
         associated_token::mint = mint_b,
         associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
     )]
     pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut,
         associated_token::mint = mint_a,
         associated_token::authority = user,
+        associated_token::token_program = token_program,
     )]
     pub user_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(mut,
         associated_token::mint = mint_b,
         associated_token::authority = user,
+        associated_token::token_program = token_program,
     )]
     pub user_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -135,23 +139,31 @@ impl<'info> Swap<'info> {
 
         
     fn calculate_output_amount(&self, swap_a: bool, input_amount: u64) -> Result<u64> {
-        // Get current reserves from pool accounts
-        let reserve_a = self.pool_account_a.amount;
-        let reserve_b = self.pool_account_b.amount;
-        
+        // Get current reserves from pool accounts as u128 to avoid overflow
+        let reserve_a = self.pool_account_a.amount as u128;
+        let reserve_b = self.pool_account_b.amount as u128;
+
         // Simplified constant product formula: (x + dx) * (y - dy) = x * y
         // where dx is input_amount and dy is output_amount
-        
         let (reserve_in, reserve_out) = if swap_a {
             (reserve_a, reserve_b)
         } else {
             (reserve_b, reserve_a)
         };
-        
-        // Calculate output using constant product formula
-        let output_amount = (input_amount * reserve_out) / (reserve_in + input_amount);
-        
-        Ok(output_amount)
+
+        // Guard against empty reserves
+        require!(reserve_in > 0 && reserve_out > 0, AmmError::InsufficientLiquidity);
+
+        let input = input_amount as u128;
+        let numerator = input.checked_mul(reserve_out).ok_or_else(|| error!(AmmError::InvalidAmount))?;
+        let denominator = reserve_in.checked_add(input).ok_or_else(|| error!(AmmError::InvalidAmount))?;
+        let output_u128 = numerator.checked_div(denominator).ok_or_else(|| error!(AmmError::InvalidAmount))?;
+
+        // Ensure result fits in u64
+        if output_u128 > u64::MAX as u128 {
+            return Err(error!(AmmError::InvalidAmount));
+        }
+        Ok(output_u128 as u64)
     }
     
     fn execute_swap(&self, swap_a: bool, input_amount: u64, output_amount: u64) -> Result<()> {

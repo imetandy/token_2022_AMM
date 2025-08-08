@@ -20,7 +20,7 @@ amm = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos"
 url = "https://api.apr.dev"
 
 [provider]
-cluster = "devnet"
+cluster = "https://devnet.helius-rpc.com/?api-key=52e2a914-28ac-4bd4-a222-1d44168db946"
 wallet = "~/.config/solana/wba-wallet.json"
 
 [scripts]
@@ -41,6 +41,6 @@ upgradeable = false
 
 [test.validator]
 bind_address = "0.0.0.0"
-url = "https://api.devnet.solana.com"
+url = "https://devnet.helius-rpc.com/?api-key=52e2a914-28ac-4bd4-a222-1d44168db946"
 ledger = ".anchor/test-ledger"
 rpc_port = 8899

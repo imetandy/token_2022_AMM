@@ -1,4 +1,9 @@
-import { Connection, PublicKey, Transaction } from '@solana/web3.js';
+import { PublicKey } from './kit';
+type Connection = any;
+type Transaction = any;
+import { createRpc, getBestRpcEndpoint } from '../config/rpc-config';
+import { createTransactionMessage, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, signTransactionMessageWithSigners, sendAndConfirmTransactionFactory } from '@solana/kit';
+import { toAddress } from './kit';
 
 const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 
@@ -6,6 +11,7 @@ const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqC
 
 export class TokenMinting {
   private connection: Connection;
+  private rpc = createRpc();
 
   constructor(connection: Connection) {
     this.connection = connection;
@@ -36,13 +42,7 @@ export class TokenMinting {
     const userTokenAccount = await this.getAssociatedTokenAddress(mintPubkey, userWallet);
     
     try {
-      // First check if the token account exists
-      const accountInfo = await this.connection.getAccountInfo(userTokenAccount);
-      if (!accountInfo) {
-        console.log(`Token account ${userTokenAccount.toString()} does not exist for mint ${mintAddress}`);
-        return 0;
-      }
-      
+      // Query balance directly; if ATA does not exist, treat as zero
       const balanceInfo = await this.connection.getTokenAccountBalance(userTokenAccount);
       return balanceInfo.value.uiAmount || 0;
     } catch (error) {
@@ -63,8 +63,8 @@ export class TokenMinting {
     const userTokenAccount = await this.getAssociatedTokenAddress(mintPubkey, userWallet);
     
     // Check if account already exists
-    const accountInfo = await this.connection.getAccountInfo(userTokenAccount);
-    if (accountInfo) {
+    const accountInfo = await this.rpc.getAccountInfo(toAddress(userTokenAccount)).send();
+    if (accountInfo.value) {
       console.log(`Token account ${userTokenAccount.toString()} already exists`);
       return userTokenAccount.toString();
     }
@@ -84,24 +84,17 @@ export class TokenMinting {
       data: Buffer.from([])
     };
 
-    const transaction = new Transaction();
-    transaction.add(createAccountInstruction);
-
-    // Get the latest blockhash
-    const { blockhash } = await this.connection.getLatestBlockhash();
-    transaction.recentBlockhash = blockhash;
-    transaction.feePayer = userWallet;
-
-    console.log('Creating associated token account...');
-    
-    // Sign and send the transaction
-    const signedTx = await signTransaction(transaction);
-    const signature = await this.connection.sendRawTransaction(signedTx.serialize());
+    // Build and send via Kit message pipeline
+    const { value: { blockhash, lastValidBlockHeight } } = await this.rpc.getLatestBlockhash().send();
+    let message = createTransactionMessage({ version: 0, instructions: [createAccountInstruction as any] } as any) as any;
+    message = setTransactionMessageFeePayerSigner(message as any, userWallet as any) as any;
+    message = setTransactionMessageLifetimeUsingBlockhash(message as any, { blockhash, lastValidBlockHeight } as any) as any;
+    const signed = await signTransactionMessageWithSigners(message as any, {} as any);
+    const { createSolanaRpcSubscriptions } = await import('@solana/kit');
+    const rpcSubscriptions = createSolanaRpcSubscriptions(getBestRpcEndpoint() as any);
+    const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc: this.rpc, rpcSubscriptions } as any);
+    const signature = await sendAndConfirm(signed as any, { commitment: 'confirmed', lastValidBlockHeight } as any);
     console.log('Associated token account created with signature:', signature);
-
-    // Wait for confirmation
-    const confirmation = await this.connection.confirmTransaction(signature, 'confirmed');
-    console.log('Transaction confirmed:', confirmation);
 
     return userTokenAccount.toString();
   }

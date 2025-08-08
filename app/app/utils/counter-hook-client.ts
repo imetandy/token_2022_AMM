@@ -1,4 +1,4 @@
-import { PublicKey, TransactionInstruction } from '@solana/web3.js';
+import { PublicKey, derivePdaAddressSync } from './kit';
 
 // Program ID
 export const COUNTER_HOOK_PROGRAM_ID = new PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
@@ -16,7 +16,7 @@ export function createInitializeMintTradeCounterInstruction(
     mintTradeCounter: PublicKey,
     payer: PublicKey,
     systemProgram: PublicKey = new PublicKey('11111111111111111111111111111111')
-): TransactionInstruction {
+): any {
     const keys = [
         { pubkey: mintTradeCounter, isSigner: false, isWritable: true },
         { pubkey: mint, isSigner: false, isWritable: false },
@@ -26,11 +26,11 @@ export function createInitializeMintTradeCounterInstruction(
 
     const data = Buffer.from(INITIALIZE_MINT_TRADE_COUNTER_DISCRIMINATOR);
 
-    return new TransactionInstruction({
+    return {
         keys,
         programId: COUNTER_HOOK_PROGRAM_ID,
         data,
-    });
+    };
 }
 
 /**
@@ -41,7 +41,7 @@ export function createUpdateMintTradeCounterInstruction(
     amount: number | bigint,
     sourceOwner: PublicKey,
     destinationOwner: PublicKey
-): TransactionInstruction {
+): any {
     const keys = [
         { pubkey: mintTradeCounter, isSigner: false, isWritable: true },
     ];
@@ -59,11 +59,11 @@ export function createUpdateMintTradeCounterInstruction(
         destinationOwnerBuffer,
     ]);
 
-    return new TransactionInstruction({
+    return {
         keys,
         programId: COUNTER_HOOK_PROGRAM_ID,
         data,
-    });
+    };
 }
 
 /**
@@ -77,7 +77,7 @@ export function createExecuteTransferHookInstruction(
     extraAccountMetaList: PublicKey,
     mintTradeCounter: PublicKey,
     amount: number | bigint
-): TransactionInstruction {
+): any {
     const keys = [
         { pubkey: sourceToken, isSigner: false, isWritable: false },
         { pubkey: mint, isSigner: false, isWritable: false },
@@ -95,35 +95,29 @@ export function createExecuteTransferHookInstruction(
         amountBuffer,
     ]);
 
-    return new TransactionInstruction({
+    return {
         keys,
         programId: COUNTER_HOOK_PROGRAM_ID,
         data,
-    });
+    };
 }
 
 /**
  * Helper to get the mint trade counter PDA
  */
 export function getMintTradeCounterPDA(mint: PublicKey): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-        [
-            Buffer.from('mint-trade-counter'),
-            mint.toBytes(),
-        ],
-        COUNTER_HOOK_PROGRAM_ID
-    );
+    return [
+        derivePdaAddressSync(['mint-trade-counter', mint], COUNTER_HOOK_PROGRAM_ID.toBase58()),
+        0,
+    ];
 }
 
 /**
  * Helper to get the extra account meta list PDA
  */
 export function getExtraAccountMetaListPDA(mint: PublicKey): [PublicKey, number] {
-    return PublicKey.findProgramAddressSync(
-        [
-            Buffer.from('extra-account-metas'),
-            mint.toBytes(),
-        ],
-        COUNTER_HOOK_PROGRAM_ID
-    );
-} 
+    return [
+        derivePdaAddressSync(['extra-account-metas', mint], COUNTER_HOOK_PROGRAM_ID.toBase58()),
+        0,
+    ];
+}

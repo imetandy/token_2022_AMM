@@ -1,12 +1,8 @@
-import { 
-  Connection, 
-  PublicKey 
-} from '@solana/web3.js';
-import { 
-  getAssociatedTokenAddressSync,
-  TOKEN_2022_PROGRAM_ID
-} from '@solana/spl-token';
-import { PROGRAM_ID } from '../config/program';
+import { PublicKey, derivePdaAddressSync, deriveAtaAddressSync } from './kit';
+type Connection = any;
+import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
+import { AMM_PROGRAM_ID } from '../config/program';
+import { rpcGetAccountInfo, toAddress } from './kit';
 
 export interface TokenBalance {
   mint: string;
@@ -28,7 +24,7 @@ export class BalanceUtils {
 
   constructor(connection: Connection) {
     this.connection = connection;
-    this.programId = new PublicKey(PROGRAM_ID);
+    this.programId = new PublicKey(AMM_PROGRAM_ID);
   }
 
   /**
@@ -40,17 +36,13 @@ export class BalanceUtils {
     tokenB: PublicKey
   ): [PublicKey, number] {
     // Use findProgramAddressSync to get the canonical bump
-    const [poolAuthority, bump] = PublicKey.findProgramAddressSync(
-      [
-        poolAddress.toBuffer(),
-        tokenA.toBuffer(),
-        tokenB.toBuffer(),
-        Buffer.from('pool_authority')
-      ],
-      this.programId
-    );
-    
-    return [poolAuthority, bump];
+    const poolAuthority = derivePdaAddressSync([
+      poolAddress,
+      tokenA,
+      tokenB,
+      'pool_authority',
+    ], this.programId.toBase58());
+    return [poolAuthority, 0];
   }
 
 
@@ -60,12 +52,12 @@ export class BalanceUtils {
     userAddress: PublicKey
   ): Promise<TokenBalance> {
     try {
-      const tokenAccount = getAssociatedTokenAddressSync(
-        mintAddress,
-        userAddress,
-        true,
-        new PublicKey(TOKEN_2022_PROGRAM_ID)
-      );
+      const tokenAccount = deriveAtaAddressSync({
+        owner: userAddress,
+        mint: mintAddress,
+        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID.toBase58 ? TOKEN_2022_PROGRAM_ID.toBase58() : String(TOKEN_2022_PROGRAM_ID),
+        associatedTokenProgramAddressBase58: 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+      });
 
       const accountInfo = await this.connection.getTokenAccountBalance(tokenAccount);
       
@@ -109,12 +101,12 @@ export class BalanceUtils {
     poolAuthority: PublicKey
   ): Promise<TokenBalance> {
     try {
-      const poolTokenAccount = getAssociatedTokenAddressSync(
-        mintAddress,
-        poolAuthority,
-        true,
-        new PublicKey(TOKEN_2022_PROGRAM_ID)
-      );
+      const poolTokenAccount = deriveAtaAddressSync({
+        owner: poolAuthority,
+        mint: mintAddress,
+        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID.toBase58 ? TOKEN_2022_PROGRAM_ID.toBase58() : String(TOKEN_2022_PROGRAM_ID),
+        associatedTokenProgramAddressBase58: 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
+      });
 
       const accountInfo = await this.connection.getTokenAccountBalance(poolTokenAccount);
       

@@ -54,17 +54,26 @@ pub struct DepositLiquidity<'info> {
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
-    /// CHECK: Pool account A - will be validated manually
-    pub pool_account_a: AccountInfo<'info>,
+    #[account(mut,
+        associated_token::mint = mint_a,
+        associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    /// CHECK: Pool account B - will be validated manually
-    pub pool_account_b: AccountInfo<'info>,
+    #[account(mut,
+        associated_token::mint = mint_b,
+        associated_token::authority = pool_authority,
+        associated_token::token_program = token_program,
+    )]
+    pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
     #[account(
         init_if_needed,
         payer = user,
         associated_token::mint = mint_a,
         associated_token::authority = user,
+        associated_token::token_program = token_program,
     )]
     pub user_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -73,6 +82,7 @@ pub struct DepositLiquidity<'info> {
         payer = user,
         associated_token::mint = mint_b,
         associated_token::authority = user,
+        associated_token::token_program = token_program,
     )]
     pub user_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -81,6 +91,7 @@ pub struct DepositLiquidity<'info> {
         payer = user,
         associated_token::mint = lp_mint,
         associated_token::authority = user,
+        associated_token::token_program = token_program,
     )]
     pub user_lp_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
@@ -130,13 +141,6 @@ impl<'info> DepositLiquidity<'info> {
         amount_a: u64,
         amount_b: u64,
     ) -> Result<()> {
-        // msg!("DEPOSIT LIQUIDITY FUNCTION CALLED!");
-        // msg!("=== DEPOSIT LIQUIDITY DEBUG ===");
-        // msg!("AMM key: {}", self.amm.key());
-        // msg!("Mint A key: {}", self.mint_a.key());
-        // msg!("Mint B key: {}", self.mint_b.key());
-        // msg!("Pool authority key: {}", self.pool_authority.key());
-        // msg!("Pool authority bump: {}", self.pool.pool_authority_bump);
         
         // Verify the pool authority derivation
         let expected_pool_authority = Pubkey::create_program_address(
@@ -149,10 +153,6 @@ impl<'info> DepositLiquidity<'info> {
             ],
             &crate::ID,
         ).map_err(|_| AmmError::InvalidPoolAuthority)?;
-        
-        msg!("Expected pool authority: {}", expected_pool_authority);
-        msg!("Actual pool authority: {}", self.pool_authority.key());
-        msg!("Pool authorities match: {}", expected_pool_authority == self.pool_authority.key());
         
         // Derive pool accounts on-chain using Token-2022 program
         let token_2022_program_id = Pubkey::from_str("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb").unwrap();
@@ -245,14 +245,7 @@ impl<'info> DepositLiquidity<'info> {
                 self.mint_trade_counter_a.key(),
                 false,
             ));
-            
-            msg!("=== TRANSFER A INSTRUCTION DEBUG ===");
-            msg!("Instruction accounts count: {}", transfer_ix.accounts.len());
-            for (i, account) in transfer_ix.accounts.iter().enumerate() {
-                msg!("Account {}: {} (writable: {}, signer: {})", 
-                     i, account.pubkey, account.is_writable, account.is_signer);
-            }
-            
+                        
             // Invoke the modified instruction
             let account_infos = &[
                 self.token_program.to_account_info(),
@@ -328,8 +321,6 @@ impl<'info> DepositLiquidity<'info> {
             (amount_a + amount_b) / 2 // Fallback for edge cases
         };
         
-        msg!("=== LP TOKEN MINTING DEBUG ===");
-        msg!("LP amount to mint: {}", lp_amount);
         
         // Use the stored bump from the pool state
         let pool_authority_bump = self.pool.pool_authority_bump;
@@ -338,16 +329,6 @@ impl<'info> DepositLiquidity<'info> {
         let mint_a_key = self.mint_a.key();
         let mint_b_key = self.mint_b.key();
         
-        // msg!("=== ACCOUNT KEYS DEBUG ===");
-        // msg!("AMM key: {}", amm_key);
-        // msg!("Mint A key: {}", mint_a_key);
-        // msg!("Mint B key: {}", mint_b_key);
-        // msg!("Pool authority key: {}", self.pool_authority.key());
-        // msg!("LP mint key: {}", self.lp_mint.key());
-        // msg!("User LP account key: {}", self.user_lp_account.key());
-        // msg!("Pool authority bump: {}", pool_authority_bump);
-        
-        // Create the signer seeds for the pool authority PDA (must match account constraints exactly)
         let authority_seeds = &[
             pool_key.as_ref(),
             mint_a_key.as_ref(),
@@ -379,24 +360,7 @@ impl<'info> DepositLiquidity<'info> {
         signer_seeds: &[&[&[u8]]; 1], 
         token_program: AccountInfo<'info>
     ) -> Result<()> {
-        msg!("=== MINT_TOKEN CPI DEBUG ===");
-        msg!("Mint account: {}", mint.key());
-        msg!("To account: {}", to.key());
-        msg!("Authority account: {}", authority.key());
-        msg!("Amount: {}", amount);
-        msg!("Token program: {}", token_program.key());
-        
-        msg!("Mint is_writable: {}", mint.is_writable);
-        msg!("To is_writable: {}", to.is_writable);
-        msg!("Authority is_writable: {}", authority.is_writable);
-        
-        msg!("Mint is_signer: {}", mint.is_signer);
-        msg!("To is_signer: {}", to.is_signer);
-        msg!("Authority is_signer: {}", authority.is_signer);
-        
-        msg!("Mint owner: {}", mint.owner);
-        msg!("To owner: {}", to.owner);
-        msg!("Authority owner: {}", authority.owner);
+        msg!("Minting {} tokens to {}", amount, to.key());
         
         mint_to(
             CpiContext::new_with_signer(

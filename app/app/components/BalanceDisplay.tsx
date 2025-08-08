@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey } from '@solana/web3.js'
+import { PublicKey } from '../utils/kit'
 import { BalanceUtils, PoolBalances } from '../utils/balance-utils'
 
 interface BalanceDisplayProps {
@@ -44,7 +44,7 @@ export default function BalanceDisplay({
         new PublicKey(poolAddress),
         new PublicKey(tokenA),
         new PublicKey(tokenB),
-        publicKey
+        new PublicKey(publicKey.toBase58())
       )
       setBalances(poolBalances)
     } catch (err) {

@@ -1,4 +1,14 @@
-import { Connection, Transaction, SendTransactionError } from '@solana/web3.js'
+type Connection = any
+import {
+  createTransactionMessage,
+  appendTransactionMessageInstructions,
+  setTransactionMessageFeePayerSigner,
+  setTransactionMessageLifetimeUsingBlockhash,
+  signTransactionMessageWithSigners,
+  sendAndConfirmTransactionFactory,
+  type IInstruction,
+} from '@solana/kit'
+import { createRpc, getBestRpcEndpoint } from '../config/rpc-config'
 import { TransactionResult } from './transaction-utils'
 
 export interface RetryOptions {
@@ -15,8 +25,8 @@ export class TransactionRetryHandler {
   }
 
   async sendTransactionWithRetry(
-    originalTransaction: Transaction,
-    signTransaction: (transaction: Transaction) => Promise<Transaction>,
+    instructions: IInstruction[],
+    feePayer: any,
     options: RetryOptions = {}
   ): Promise<TransactionResult> {
     const {
@@ -31,54 +41,26 @@ export class TransactionRetryHandler {
       try {
         console.log(`Transaction attempt ${attempt}/${maxRetries}`)
 
-        // Create a fresh transaction for each attempt to avoid signature conflicts
-        const transaction = new Transaction()
-        
-        // Copy all instructions from the original transaction
-        originalTransaction.instructions.forEach(instruction => {
-          transaction.add(instruction)
-        })
-
-        // Get fresh blockhash for each attempt
-        const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash('finalized')
-        transaction.recentBlockhash = blockhash
-        transaction.feePayer = originalTransaction.feePayer
-
-        // Sign the transaction
-        const signedTransaction = await signTransaction(transaction)
-
-        // Send the transaction
-        const signature = await this.connection.sendRawTransaction(signedTransaction.serialize(), {
-          skipPreflight: false,
-          preflightCommitment: 'confirmed',
-          maxRetries: 1 // We handle retries ourselves
-        })
+        const rpc = createRpc()
+        const { value: { blockhash, lastValidBlockHeight } } = await rpc.getLatestBlockhash().send()
+        const msg0 = createTransactionMessage({ version: 0 } as any)
+        const msg1 = appendTransactionMessageInstructions(msg0 as any, instructions as any)
+        const msg2 = setTransactionMessageFeePayerSigner(msg1 as any, feePayer as any)
+        const msg3 = setTransactionMessageLifetimeUsingBlockhash(msg2 as any, { blockhash, lastValidBlockHeight } as any)
+        const signed = await signTransactionMessageWithSigners(msg3 as any, { signers: [feePayer] } as any)
+        const { createSolanaRpcSubscriptions } = await import('@solana/kit')
+        const rpcSubscriptions = createSolanaRpcSubscriptions(getBestRpcEndpoint() as any)
+        const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions } as any)
+        const signature = await sendAndConfirm(signed as any, { commitment: 'confirmed', lastValidBlockHeight } as any)
 
         console.log(`Transaction sent with signature: ${signature}`)
-
-        // Wait for confirmation with timeout
-        const confirmation = await this.connection.confirmTransaction({
-          signature,
-          blockhash,
-          lastValidBlockHeight
-        }, 'confirmed')
-
-        if (confirmation.value.err) {
-          throw new Error(`Transaction failed: ${confirmation.value.err}`)
-        }
-
-        // Get transaction details for logs
-        const transactionResponse = await this.connection.getTransaction(signature, {
-          commitment: 'confirmed',
-          maxSupportedTransactionVersion: 0
-        })
 
         console.log(`✅ Transaction successful on attempt ${attempt}`)
 
         return {
-          signature,
+          signature: typeof signature === 'string' ? signature : '',
           success: true,
-          logs: transactionResponse?.meta?.logMessages || []
+          logs: []
         }
 
       } catch (error) {
@@ -95,16 +77,10 @@ export class TransactionRetryHandler {
             if (signature) {
               console.log(`✅ Transaction was already processed with signature: ${signature}`)
               
-              // Get transaction details for logs
-              const transactionResponse = await this.connection.getTransaction(signature, {
-                commitment: 'confirmed',
-                maxSupportedTransactionVersion: 0
-              })
-
               return {
                 signature,
                 success: true,
-                logs: transactionResponse?.meta?.logMessages || ['Transaction was already processed successfully']
+                logs: ['Transaction was already processed successfully']
               }
             }
           } catch (extractError) {
@@ -133,12 +109,12 @@ export class TransactionRetryHandler {
     }
 
     // If we get here, all attempts failed
-    if (lastError instanceof SendTransactionError) {
+    if ((lastError as any)?.logs) {
       return {
         signature: '',
         success: false,
-        error: `Transaction failed after ${maxRetries} attempts: ${lastError.message}`,
-        logs: lastError.logs || []
+        error: `Transaction failed after ${maxRetries} attempts: ${(lastError as Error).message}`,
+        logs: (lastError as any).logs || []
       }
     }
 
@@ -151,22 +127,15 @@ export class TransactionRetryHandler {
   }
 
   private isAlreadyProcessedError(error: any): boolean {
-    if (error instanceof SendTransactionError) {
-      return error.message.includes('already been processed')
-    }
-    return error?.message?.includes('already been processed') || false
+    const message = (error as any)?.message ?? ''
+    return typeof message === 'string' && message.includes('already been processed')
   }
 
   private extractSignatureFromError(error: any): string | null {
-    if (error instanceof SendTransactionError) {
-      // Try to extract signature from error message
-      const signatureMatch = error.message.match(/signature: ([A-Za-z0-9]+)/)
-      return signatureMatch ? signatureMatch[1] : null
-    }
-    
-    // Fallback for other error types
-    const signatureMatch = error?.message?.match(/signature: ([A-Za-z0-9]+)/)
-    return signatureMatch ? signatureMatch[1] : null
+    const message = (error as any)?.message ?? ''
+    if (typeof message !== 'string') return null
+    const match = message.match(/signature: ([A-Za-z0-9]+)/)
+    return match ? match[1] : null
   }
 
   private sleep(ms: number): Promise<void> {

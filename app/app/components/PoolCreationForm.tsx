@@ -2,9 +2,11 @@
 
 import { useState, useRef } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { Keypair, PublicKey } from '@solana/web3.js'
+import { PublicKey } from '../utils/kit'
+type Keypair = any;
 import { AMM_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID } from '../config/program'
-import { WalletClientNew } from '../utils/wallet-client-new'
+import { AnchorClient } from '../utils/anchor-client'
+// WalletClientNew removed; using generated builders + Kit pipeline directly
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import PoolDataDisplay from './PoolDataDisplay'
@@ -57,131 +59,48 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
     setTransactionResult(null)
 
     try {
-      // Create Wallet client
-      const walletClient = new WalletClientNew(connection)
-      
-      // Derive AMM PDA using mints as seeds
-      const [ammPda] = PublicKey.findProgramAddressSync(
-        [
-          Buffer.from('amm'),
-          new PublicKey(tokenA).toBuffer(),
-          new PublicKey(tokenB).toBuffer()
-        ],
-        new PublicKey(AMM_PROGRAM_ID)
-      )
-      
-      // Derive pool PDA using AMM public key and token mints
-      const [poolPda] = PublicKey.findProgramAddressSync(
-        [
-          ammPda.toBuffer(),
-          new PublicKey(tokenA).toBuffer(),
-          new PublicKey(tokenB).toBuffer()
-        ],
-        new PublicKey(AMM_PROGRAM_ID)
-      )
-      
+      // Use Anchor client to build and send txs instead of crafting messages manually
+      const client = new AnchorClient(connection, { publicKey, signTransaction } as any)
 
-      
-      // Generate keypair for liquidity mint (this needs to be a signer)
-      const mintLiquidityKeypair = Keypair.generate()
-      
-      // Create SOL fee collector (using wallet as fee collector)
       const solFeeCollector = publicKey
-      const solFee = 50_000_000 // 0.05 SOL in lamports
+      const solFee = 50_000_000
 
-      // Convert liquidity amount to proper format (assuming 6 decimals)
-      const liquidityAmount = Math.floor(parseFloat(initialLiquidity) * 1e6)
-
-      // Step 1: Create AMM
       console.log('Creating AMM with mints:', tokenA, tokenB)
       console.log('Token A address:', new PublicKey(tokenA).toString())
       console.log('Token B address:', new PublicKey(tokenB).toString())
-      const ammResult = await walletClient.createAMM(
-        publicKey,
+      const ammRes = await client.createAmm(new PublicKey(tokenA), new PublicKey(tokenB), solFee, solFeeCollector as any, signTransaction)
+      if (!ammRes.success) throw new Error('createAmm failed')
+
+      const poolRes = await client.createPool(new PublicKey(tokenA), new PublicKey(tokenB), signTransaction)
+      if (!poolRes.success) throw new Error('createPool failed')
+
+      const cptaRes = await client.createPoolTokenAccounts(new PublicKey(tokenA), new PublicKey(tokenB), poolRes.lpMint as any, poolRes.pool as any, signTransaction)
+      if (!cptaRes.success) throw new Error('createPoolTokenAccounts failed')
+
+      const liquidityAmount = Math.floor(parseFloat(initialLiquidity) * 1e6)
+      const depRes = await client.depositLiquidity(
         new PublicKey(tokenA),
         new PublicKey(tokenB),
-        solFee,
-        solFeeCollector,
+        poolRes.pool as any,
+        poolRes.lpMint as any,
+        liquidityAmount,
+        liquidityAmount,
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID),
         signTransaction
       )
 
-      if (!ammResult.success) {
-        setTransactionResult(ammResult)
-        return
-      }
-
-      // Add a small delay to ensure the AMM transaction is fully processed
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Step 2: Create Pool (pool data and LP mint only)
-      console.log('Creating Pool...')
-      console.log('Pool creation - Token A address:', new PublicKey(tokenA).toString())
-      console.log('Pool creation - Token B address:', new PublicKey(tokenB).toString())
-      
-      const poolResult = await walletClient.createPool(
-        publicKey,
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
-        mintLiquidityKeypair,
-        signTransaction
-      )
-
-      if (!poolResult.success) {
-        setTransactionResult(poolResult)
-        return
-      }
-
-      // Add a small delay to ensure the pool transaction is fully processed
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Step 3: Create Pool Token Accounts
-      console.log('Creating pool token accounts...')
-      const tokenAccountsResult = await walletClient.createPoolTokenAccounts(
-        publicKey,
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
-        mintLiquidityKeypair.publicKey,
-        signTransaction
-      )
-
-      if (!tokenAccountsResult.success) {
-        setTransactionResult(tokenAccountsResult)
-        return
-      }
-
-      // Add a small delay to ensure the token accounts transaction is fully processed
-      await new Promise(resolve => setTimeout(resolve, 2000))
-
-      // Step 4: Add Initial Liquidity (1:1 ratio)
-      console.log('Adding initial liquidity...')
-      const liquidityResult = await walletClient.depositLiquidity(
-        publicKey,
-        ammPda, // Pass the AMM ID
-        poolPda,
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
-        mintLiquidityKeypair.publicKey, // Pass the liquidity mint account
-        BigInt(liquidityAmount), // Token A amount
-        BigInt(liquidityAmount),  // Token B amount (1:1 ratio)
-        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint A
-        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint B
-        signTransaction
-      )
+      const liquidityResult = { signature: depRes.signature, success: depRes.success, error: depRes.success ? null : 'deposit failed', logs: [] } as TransactionResult
 
       setTransactionResult(liquidityResult)
 
       if (liquidityResult.success) {
-        const ammAddress = ammPda.toString()
-        const poolAddress = poolPda.toString()
+        const ammAddress = ammRes.amm.toString()
+        const poolAddress = poolRes.pool.toString()
         
         setLocalCreatedPool({ amm: ammAddress, pool: poolAddress })
         onPoolCreated?.(ammAddress, poolAddress)
         
-        // Capture pool data if available
-        if (liquidityResult.poolData) {
-          setPoolData(liquidityResult.poolData)
-          console.log('Pool data captured:', liquidityResult.poolData)
-        }
+        // Pool data fetch can be implemented later via rpc
         
         console.log('Pool created successfully with liquidity:', { ammAddress, poolAddress, liquidityAmount })
       } else {

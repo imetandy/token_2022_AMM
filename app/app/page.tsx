@@ -1,12 +1,15 @@
 'use client'
 
 import { useState, useCallback } from 'react'
+import bs58 from 'bs58'
+import { createRpc } from './config/rpc-config'
+import { setDevWalletSecretInStorage } from './utils/dev-wallet-adapter'
 import TokenCreationForm from './components/TokenCreationForm'
 import TradingInterface from './components/TradingInterface'
 import PoolCreationForm from './components/PoolCreationForm'
 
 import { WalletConnectButton } from './components/WalletConnectButton'
-import { Connection } from '@solana/web3.js'
+type Connection = any
 
 export default function Home() {
   const [createdTokens, setCreatedTokens] = useState<{
@@ -22,6 +25,60 @@ export default function Home() {
   }>({ amm: null, pool: null })
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const [faucetState, setFaucetState] = useState<{
+    address: string | null;
+    secretKey: string | null;
+    signature: string | null;
+    isLoading: boolean;
+    error: string | null;
+  }>({ address: null, secretKey: null, signature: null, isLoading: false, error: null })
+
+  const handleDevnetFaucet = useCallback(async () => {
+    try {
+      setFaucetState((s) => ({ ...s, isLoading: true, error: null }))
+      const { generateKeyPairSigner } = await import('@solana/kit')
+      const kp: any = await generateKeyPairSigner()
+      const address: string = kp.address ?? kp.publicKey?.toBase58()
+      const secretKey: string = kp.secretKey ? bs58.encode(kp.secretKey) : ''
+      setFaucetState((s) => ({ ...s, address, secretKey }))
+
+      const lamports = BigInt('5000000000') as any
+      let sig: string
+      try {
+        // Attempt with configured RPC (may be a provider that blocks airdrops)
+        const rpc = createRpc()
+        sig = (await rpc.requestAirdrop(address as any, lamports as any).send()) as any
+        for (let i = 0; i < 15; i++) {
+          const statuses = await rpc.getSignatureStatuses([sig as any]).send()
+          const status = statuses.value?.[0]
+          if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
+            setFaucetState((s) => ({ ...s, signature: sig, isLoading: false }))
+            return
+          }
+          await new Promise((r) => setTimeout(r, 1200))
+        }
+      } catch (err) {
+        // Fallback to public devnet endpoint
+        const { createSolanaRpc } = await import('@solana/kit')
+        const fallbackRpc = createSolanaRpc('https://api.devnet.solana.com')
+        sig = (await fallbackRpc.requestAirdrop(address as any, lamports as any).send()) as any
+        for (let i = 0; i < 15; i++) {
+          const statuses = await fallbackRpc.getSignatureStatuses([sig as any]).send()
+          const status = statuses.value?.[0]
+          if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
+            setFaucetState((s) => ({ ...s, signature: sig, isLoading: false }))
+            return
+          }
+          await new Promise((r) => setTimeout(r, 1200))
+        }
+      }
+
+      setFaucetState((s) => ({ ...s, signature: sig, isLoading: false }))
+    } catch (e: any) {
+      setFaucetState((s) => ({ ...s, isLoading: false, error: e?.message ?? 'Faucet failed' }))
+    }
+  }, [])
 
   const handleTokensSet = useCallback((tokenA: string, tokenB: string, userAccountA: string, userAccountB: string) => {
     setCreatedTokens({ tokenA, tokenB, userAccountA, userAccountB });
@@ -54,6 +111,31 @@ export default function Home() {
               <div className="hidden sm:block text-xs text-gray-500">
                 Devnet
               </div>
+              <button
+                onClick={handleDevnetFaucet}
+                disabled={faucetState.isLoading}
+                className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                title="Generate a new devnet keypair and airdrop 5 SOL"
+              >
+                {faucetState.isLoading ? 'Airdropping 5 SOL...' : 'Devnet Faucet (5 SOL)'}
+              </button>
+              {faucetState.secretKey && (
+                <button
+                  onClick={() => {
+                    setDevWalletSecretInStorage(faucetState.secretKey!)
+                    if (typeof window !== 'undefined') {
+                      try {
+                        window.localStorage.setItem('@solana/wallet-adapter-react:walletName', 'Dev Keypair')
+                      } catch {}
+                      window.location.reload()
+                    }
+                  }}
+                  className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-800"
+                  title="Use the faucet keypair as the app's dev wallet"
+                >
+                  Use As Dev Wallet
+                </button>
+              )}
               <WalletConnectButton />
             </div>
           </div>
@@ -188,6 +270,21 @@ export default function Home() {
                   {createdPool.amm && createdPool.pool ? '✓' : '—'}
                 </span>
               </div>
+              {faucetState.address && (
+                <div className="mt-3 p-2 rounded bg-indigo-50 border border-indigo-200">
+                  <div className="text-xs text-indigo-800 font-medium mb-1">Devnet Faucet Result</div>
+                  <div className="text-[11px] text-indigo-900 break-all">Address: {faucetState.address}</div>
+                  {faucetState.secretKey && (
+                    <div className="text-[11px] text-indigo-900 break-all mt-1">Secret (bs58): {faucetState.secretKey}</div>
+                  )}
+                  {faucetState.signature && (
+                    <div className="text-[11px] text-indigo-900 break-all mt-1">Airdrop Sig: {faucetState.signature}</div>
+                  )}
+                  {faucetState.error && (
+                    <div className="text-[11px] text-red-600 break-all mt-1">Error: {faucetState.error}</div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

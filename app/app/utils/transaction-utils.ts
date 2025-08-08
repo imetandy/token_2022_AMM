@@ -1,5 +1,9 @@
-import { Connection, PublicKey, TransactionSignature, TransactionResponse } from '@solana/web3.js';
+import { PublicKey } from './kit';
+type Connection = any;
+type TransactionSignature = string;
+type TransactionResponse = any;
 import { createRpcClient, PROGRAM_ID } from '../config/program';
+import { waitForConfirmation } from './confirm';
 
 export interface TransactionResult {
   signature: string;
@@ -25,7 +29,7 @@ export const sendAndConfirmTransaction = async (
   transaction: any,
   signers: any[],
   commitment: 'confirmed' | 'finalized' = 'confirmed'
-): Promise<TransactionResult> => {
+  ): Promise<TransactionResult> => {
   try {
     // Send transaction
     const signature = await connection.sendTransaction(transaction, signers, {
@@ -34,8 +38,8 @@ export const sendAndConfirmTransaction = async (
     });
     console.log('Transaction sent:', signature);
 
-    // Wait for confirmation
-    const confirmation = await connection.confirmTransaction(signature, commitment);
+    // Wait for confirmation with extended timeout
+    const confirmation = await waitForConfirmation(connection, signature, 60000, commitment);
     
     if (confirmation.value.err) {
       return {

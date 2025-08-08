@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey } from '@solana/web3.js'
+import { PublicKey } from '../utils/kit'
 import { AnchorClient } from '../utils/anchor-client'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
@@ -81,8 +81,12 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
       // Create Anchor client
       const anchorClient = new AnchorClient(connection, { publicKey, signTransaction })
       
-      // Convert amount to proper format (assuming 6 decimals)
-      const inputAmount = Math.floor(parseFloat(swapData.amount) * 1e6)
+      // Convert amount using on-chain mint decimals
+      const mintAInfo = await connection.getParsedAccountInfo(new PublicKey(tokenA))
+      // jsonParsed path for Token-2022 mints
+      const decimals = (mintAInfo?.value as any)?.data?.parsed?.info?.decimals ?? 6
+      const scale = Math.pow(10, decimals)
+      const inputAmount = Math.floor(parseFloat(swapData.amount) * scale)
       const minOutputAmount = Math.floor(inputAmount * 0.95) // 5% slippage tolerance
       
       // Execute swap

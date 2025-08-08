@@ -547,11 +547,11 @@ checksum = "7c74b8349d32d297c9134b8c88677813a227df8f779daa29bfc29c183fe3dca6"
 name = "counter_hook"
 version = "0.1.0"
 dependencies = [
- "anchor-lang",
  "borsh 0.10.4",
  "borsh-derive 0.10.4",
- "spl-tlv-account-resolution 0.10.0",
- "spl-transfer-hook-interface 0.10.0",
+ "solana-program",
+ "spl-tlv-account-resolution 0.9.0",
+ "spl-transfer-hook-interface 0.9.0",
  "thiserror 1.0.69",
 ]
 

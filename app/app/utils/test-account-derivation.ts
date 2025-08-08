@@ -1,5 +1,4 @@
-import { PublicKey } from '@solana/web3.js'
-import { getAssociatedTokenAddressSync } from '@solana/spl-token'
+import { PublicKey, derivePdaAddressSync, deriveAtaAddressSync } from './kit'
 import { 
   TOKEN_2022_PROGRAM, 
   ASSOCIATED_TOKEN_PROGRAM,
@@ -20,74 +19,71 @@ export function testAccountDerivation() {
   console.log('=== Account Derivation Test ===')
   
   // Derive pool authority
-  const [poolAuthority] = PublicKey.findProgramAddressSync(
-    [
-      poolAddress.toBuffer(),
-      mintA.toBuffer(),
-      mintB.toBuffer(),
-      Buffer.from(POOL_AUTHORITY_SEED)
-    ],
-    ammProgramId
-  )
+  const poolAuthority = derivePdaAddressSync([
+    poolAddress,
+    mintA,
+    mintB,
+    POOL_AUTHORITY_SEED,
+  ], ammProgramId.toBase58())
   console.log('Pool Authority:', poolAuthority.toString())
 
   // Derive user accounts using our method
-  const userAccountA = getAssociatedTokenAddressSync(
-    mintA,
-    userWallet,
-    true,
-    TOKEN_2022_PROGRAM
-  )
+  const userAccountA = deriveAtaAddressSync({
+    owner: userWallet,
+    mint: mintA,
+    tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
+    associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
+  })
   console.log('User Account A (our method):', userAccountA.toString())
 
-  const userAccountB = getAssociatedTokenAddressSync(
-    mintB,
-    userWallet,
-    true,
-    TOKEN_2022_PROGRAM
-  )
+  const userAccountB = deriveAtaAddressSync({
+    owner: userWallet,
+    mint: mintB,
+    tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
+    associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
+  })
   console.log('User Account B (our method):', userAccountB.toString())
 
   // Derive pool accounts
-  const poolAccountA = getAssociatedTokenAddressSync(
-    mintA,
-    poolAuthority,
-    true,
-    TOKEN_2022_PROGRAM
-  )
+  const poolAccountA = deriveAtaAddressSync({
+    owner: poolAuthority,
+    mint: mintA,
+    tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
+    associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
+  })
   console.log('Pool Account A:', poolAccountA.toString())
 
-  const poolAccountB = getAssociatedTokenAddressSync(
-    mintB,
-    poolAuthority,
-    true,
-    TOKEN_2022_PROGRAM
-  )
+  const poolAccountB = deriveAtaAddressSync({
+    owner: poolAuthority,
+    mint: mintB,
+    tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
+    associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
+  })
   console.log('Pool Account B:', poolAccountB.toString())
 
   // Derive transfer hook accounts
-  const [extraAccountMetaListA] = PublicKey.findProgramAddressSync(
-    [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintA.toBuffer()],
-    TOKEN_SETUP_PROGRAM
-  )
+  const extraAccountMetaListA = derivePdaAddressSync([
+    EXTRA_ACCOUNT_METAS_SEED,
+    mintA,
+  ], TOKEN_SETUP_PROGRAM.toBase58())
   console.log('Extra Account Meta List A:', extraAccountMetaListA.toString())
 
-  const [mintTradeCounterA] = PublicKey.findProgramAddressSync(
-    [Buffer.from(MINT_TRADE_COUNTER_SEED), mintA.toBuffer()],
-    TOKEN_SETUP_PROGRAM
-  )
+  const mintTradeCounterA = derivePdaAddressSync([
+    MINT_TRADE_COUNTER_SEED,
+    mintA,
+  ], TOKEN_SETUP_PROGRAM.toBase58())
   console.log('Mint Trade Counter A:', mintTradeCounterA.toString())
 
-  const [extraAccountMetaListB] = PublicKey.findProgramAddressSync(
-    [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintB.toBuffer()],
-    TOKEN_SETUP_PROGRAM
-  )
+  const extraAccountMetaListB = derivePdaAddressSync([
+    EXTRA_ACCOUNT_METAS_SEED,
+    mintB,
+  ], TOKEN_SETUP_PROGRAM.toBase58())
   console.log('Extra Account Meta List B:', extraAccountMetaListB.toString())
 
-  const [mintTradeCounterB] = PublicKey.findProgramAddressSync(
-    [Buffer.from(MINT_TRADE_COUNTER_SEED), mintB.toBuffer()],
-    TOKEN_SETUP_PROGRAM
-  )
+  const mintTradeCounterB = derivePdaAddressSync([
+    MINT_TRADE_COUNTER_SEED,
+    mintB,
+  ], TOKEN_SETUP_PROGRAM.toBase58())
   console.log('Mint Trade Counter B:', mintTradeCounterB.toString())
 
   console.log('=== Expected vs Actual from Error ===')
@@ -102,32 +98,10 @@ export function testAccountDerivation() {
   // Try different derivation methods to see if any match
   console.log('=== Alternative Derivation Methods ===')
   
-  // Method 1: Using standard SPL token derivation (not Token-2022)
-  const userAccountA_std = getAssociatedTokenAddressSync(
-    mintA,
-    userWallet,
-    false // allowOwnerOffCurve = false
-  )
-  console.log('User Account A (standard SPL):', userAccountA_std.toString())
+  // Method 1: (removed) standard SPL derivation example
   
   // Method 2: Manual PDA derivation
-  const [userAccountA_manual] = PublicKey.findProgramAddressSync(
-    [
-      userWallet.toBuffer(),
-      new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL').toBuffer(),
-      TOKEN_2022_PROGRAM.toBuffer(),
-      mintA.toBuffer(),
-    ],
-    new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
-  )
-  console.log('User Account A (manual PDA):', userAccountA_manual.toString())
+  // Manual derivation example is obsolete under Kit
   
-  // Method 3: Using allowOwnerOffCurve = false with Token-2022
-  const userAccountA_no_offcurve = getAssociatedTokenAddressSync(
-    mintA,
-    userWallet,
-    false,
-    TOKEN_2022_PROGRAM
-  )
-  console.log('User Account A (no offcurve):', userAccountA_no_offcurve.toString())
+  // Method 3: (removed) off-curve variant example
 } 
