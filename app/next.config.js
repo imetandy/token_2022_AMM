@@ -8,6 +8,12 @@ const nextConfig = {
       tls: false,
     };
     
+    // Suppress bigint-buffer warning
+    config.ignoreWarnings = [
+      ...(config.ignoreWarnings || []),
+      /Failed to load bindings, pure JS will be used/,
+    ];
+    
     return config;
   },
 }

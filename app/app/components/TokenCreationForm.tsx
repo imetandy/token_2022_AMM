@@ -9,10 +9,12 @@ import TransactionResultComponent from './TransactionResult'
 import { TokenMinting } from '../utils/token-minting'
 
 interface TokenCreationFormProps {
-  onTokensSet: (tokenA: string, tokenB: string) => void
+  onTokensSet: (tokenA: string, tokenB: string, userAccountA: string, userAccountB: string) => void
   createdTokens: {
     tokenA: string | null
     tokenB: string | null
+    userAccountA: string | null
+    userAccountB: string | null
   }
 }
 
@@ -57,6 +59,8 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
       
       let tokenAAddress: string | null = null
       let tokenBAddress: string | null = null
+      let userAccountAAddress: string | null = null
+      let userAccountBAddress: string | null = null
 
       // Create Token A with hook
       console.log('Creating Token A:', tokenAName, tokenASymbol)
@@ -85,6 +89,12 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
           console.error('Failed to mint Token A:', mintResultA.error)
           setTransactionResult(mintResultA)
           return
+        }
+        
+        // Capture user account address for Token A
+        if (mintResultA.userAccountAddress) {
+          userAccountAAddress = mintResultA.userAccountAddress
+          console.log('User Account A address captured:', userAccountAAddress)
         }
       } else {
         console.error('Failed to create Token A:', resultA.error)
@@ -120,6 +130,12 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
           setTransactionResult(mintResultB)
           return
         }
+        
+        // Capture user account address for Token B
+        if (mintResultB.userAccountAddress) {
+          userAccountBAddress = mintResultB.userAccountAddress
+          console.log('User Account B address captured:', userAccountBAddress)
+        }
       } else {
         console.error('Failed to create Token B:', resultB.error)
         setTransactionResult(resultB)
@@ -127,13 +143,15 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
       }
 
       // Both tokens created successfully
-      if (tokenAAddress && tokenBAddress) {
+      if (tokenAAddress && tokenBAddress && userAccountAAddress && userAccountBAddress) {
         console.log('Both tokens created successfully!')
         console.log('Token A:', tokenAAddress)
         console.log('Token B:', tokenBAddress)
+        console.log('User Account A:', userAccountAAddress)
+        console.log('User Account B:', userAccountBAddress)
         
         // Update parent component
-        onTokensSet(tokenAAddress, tokenBAddress)
+        onTokensSet(tokenAAddress, tokenBAddress, userAccountAAddress, userAccountBAddress)
         
         setTransactionResult({
           signature: resultB.signature,

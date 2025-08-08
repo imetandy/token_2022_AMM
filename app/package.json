@@ -3,17 +3,13 @@
   "version": "1.0.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "NODE_OPTIONS='--no-warnings' next dev",
     "build": "next build",
     "start": "next start",
     "lint": "next lint"
   },
   "dependencies": {
-    "@solana-program/token-2022": "^0.4.2",
-    "@solana/kit": "^2.3.0",
-    "@solana/rpc": "^2.3.0",
-    "@solana/rpc-subscriptions": "^2.3.0",
-    "@solana/signers": "^2.3.0",
+    "@coral-xyz/anchor": "^0.31.1",
     "@solana/spl-token": "^0.4.13",
     "@solana/wallet-adapter-base": "^0.9.27",
     "@solana/wallet-adapter-react": "^0.15.39",

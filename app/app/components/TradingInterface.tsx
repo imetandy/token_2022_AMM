@@ -3,10 +3,12 @@
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
 import { PublicKey } from '@solana/web3.js'
-import { WalletClientNew } from '../utils/wallet-client-new'
+import { AnchorClient } from '../utils/anchor-client'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import BalanceDisplay from './BalanceDisplay'
+import { COUNTER_HOOK_PROGRAM_ID } from '../config/program'
+import { testAccountDerivation } from '../utils/test-account-derivation'
 
 interface TradingInterfaceProps {
   tokenA?: string | null
@@ -14,9 +16,10 @@ interface TradingInterfaceProps {
   poolAddress?: string | null
   ammAddress?: string | null
   canTrade?: boolean
+  refreshTrigger?: number
 }
 
-export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddress, canTrade }: TradingInterfaceProps) {
+export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddress, canTrade, refreshTrigger = 0 }: TradingInterfaceProps) {
   const { publicKey, signTransaction } = useWallet()
   const { connection } = useConnection()
   
@@ -26,7 +29,7 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
   })
   const [isLoading, setIsLoading] = useState(false)
   const [transactionResult, setTransactionResult] = useState<TransactionResult | null>(null)
-  const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [localRefreshTrigger, setLocalRefreshTrigger] = useState(0)
 
   const handleSwap = async () => {
     if (!publicKey) {
@@ -67,16 +70,23 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
       console.log('Amount:', swapData.amount)
       console.log('Direction:', swapData.direction)
 
-      // Create Wallet client
-      const walletClient = new WalletClientNew(connection)
+      // Test account derivation
+      testAccountDerivation()
+
+              // Debug: Check token addresses
+        console.log('=== Token Addresses ===')
+        console.log('tokenA prop:', tokenA)
+        console.log('tokenB prop:', tokenB)
+
+      // Create Anchor client
+      const anchorClient = new AnchorClient(connection, { publicKey, signTransaction })
       
       // Convert amount to proper format (assuming 6 decimals)
       const inputAmount = Math.floor(parseFloat(swapData.amount) * 1e6)
       const minOutputAmount = Math.floor(inputAmount * 0.95) // 5% slippage tolerance
       
       // Execute swap
-      const result = await walletClient.swapTokens(
-        publicKey,
+      const result = await anchorClient.swapTokens(
         new PublicKey(ammAddress),
         new PublicKey(poolAddress),
         new PublicKey(tokenA),
@@ -84,6 +94,8 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
         swapData.direction === 'AtoB', // swapA
         inputAmount,
         minOutputAmount,
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint A
+        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint B
         signTransaction
       )
 
@@ -93,7 +105,7 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
         console.log('Swap executed successfully:', result.signature)
         // Wait a bit for blockchain state to update, then refresh balances
         setTimeout(() => {
-          setRefreshTrigger(prev => prev + 1)
+          setLocalRefreshTrigger(prev => prev + 1)
         }, 2000) // 2 second delay
       } else {
         console.error('Failed to execute swap:', result.error)
@@ -122,7 +134,7 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
         tokenB={tokenB}
         poolAddress={poolAddress}
         ammAddress={ammAddress}
-        refreshTrigger={refreshTrigger}
+        refreshTrigger={refreshTrigger + localRefreshTrigger}
         isSwapInProgress={isLoading}
       />
 
