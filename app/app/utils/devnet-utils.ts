@@ -1,9 +1,9 @@
 import { Connection, Keypair, LAMPORTS_PER_SOL, PublicKey } from '@solana/web3.js';
-import { RPC_ENDPOINT } from '../config/program';
+import { getBestRpcEndpoint } from '../config/rpc-config';
 
 export async function fundKeypairWithSOL(keypair: Keypair, amount: number = 1): Promise<boolean> {
   try {
-    const connection = new Connection(RPC_ENDPOINT, 'confirmed');
+    const connection = new Connection(getBestRpcEndpoint(), 'confirmed');
     
     console.log(`Funding keypair ${keypair.publicKey.toString()} with ${amount} SOL...`);
     
@@ -28,7 +28,7 @@ export async function fundKeypairWithSOL(keypair: Keypair, amount: number = 1): 
 
 export async function checkSOLBalance(publicKey: PublicKey): Promise<number> {
   try {
-    const connection = new Connection(RPC_ENDPOINT, 'confirmed');
+    const connection = new Connection(getBestRpcEndpoint(), 'confirmed');
     const balance = await connection.getBalance(publicKey);
     return balance / LAMPORTS_PER_SOL;
   } catch (error) {

@@ -6,6 +6,9 @@ use anchor_spl::{
 use anchor_spl::token_interface::spl_token_2022;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::program::invoke;
+use anchor_lang::solana_program::pubkey::Pubkey;
+use anchor_spl::associated_token::spl_associated_token_account;
+use std::str::FromStr;
 
 use crate::{
     constants::{POOL_AUTHORITY_SEED, AMM_SEED},
@@ -39,23 +42,23 @@ pub struct DepositLiquidity<'info> {
     /// CHECK: Pool authority PDA
     #[account(
         seeds = [
-            amm.key().as_ref(),
+            pool.key().as_ref(),
             mint_a.key().as_ref(),
             mint_b.key().as_ref(),
             POOL_AUTHORITY_SEED,
         ],
-        bump,
+        bump = pool.pool_authority_bump,
     )]
     pub pool_authority: AccountInfo<'info>,
 
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
 
-    #[account(mut)]
-    pub pool_account_a: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: Pool account A - will be validated manually
+    pub pool_account_a: AccountInfo<'info>,
 
-    #[account(mut)]
-    pub pool_account_b: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: Pool account B - will be validated manually
+    pub pool_account_b: AccountInfo<'info>,
 
     #[account(
         init_if_needed,
@@ -81,13 +84,8 @@ pub struct DepositLiquidity<'info> {
     )]
     pub user_lp_account: Box<InterfaceAccount<'info, TokenAccount>>,
 
-    #[account(
-        init_if_needed,
-        payer = user,
-        associated_token::mint = lp_mint,
-        associated_token::authority = pool_authority,
-    )]
-    pub pool_lp_account: Box<InterfaceAccount<'info, TokenAccount>>,
+    /// CHECK: Pool LP account - will be validated manually
+    pub pool_lp_account: AccountInfo<'info>,
 
     #[account(mut)]
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
@@ -132,6 +130,80 @@ impl<'info> DepositLiquidity<'info> {
         amount_a: u64,
         amount_b: u64,
     ) -> Result<()> {
+        // msg!("DEPOSIT LIQUIDITY FUNCTION CALLED!");
+        // msg!("=== DEPOSIT LIQUIDITY DEBUG ===");
+        // msg!("AMM key: {}", self.amm.key());
+        // msg!("Mint A key: {}", self.mint_a.key());
+        // msg!("Mint B key: {}", self.mint_b.key());
+        // msg!("Pool authority key: {}", self.pool_authority.key());
+        // msg!("Pool authority bump: {}", self.pool.pool_authority_bump);
+        
+        // Verify the pool authority derivation
+        let expected_pool_authority = Pubkey::create_program_address(
+            &[
+                self.pool.key().as_ref(),
+                self.mint_a.key().as_ref(),
+                self.mint_b.key().as_ref(),
+                POOL_AUTHORITY_SEED.as_ref(),
+                &[self.pool.pool_authority_bump],
+            ],
+            &crate::ID,
+        ).map_err(|_| AmmError::InvalidPoolAuthority)?;
+        
+        msg!("Expected pool authority: {}", expected_pool_authority);
+        msg!("Actual pool authority: {}", self.pool_authority.key());
+        msg!("Pool authorities match: {}", expected_pool_authority == self.pool_authority.key());
+        
+        // Derive pool accounts on-chain using Token-2022 program
+        let token_2022_program_id = Pubkey::from_str("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb").unwrap();
+        
+        // Manually derive associated token addresses to match TypeScript getAssociatedTokenAddressSync with allowOwnerOffCurve = true
+        // This is equivalent to: getAssociatedTokenAddressSync(mint, owner, true, program_id)
+        // The TypeScript version uses: findProgramAddressSync([owner.toBuffer(), programId.toBuffer(), mint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM_ID)
+        let associated_token_program_id = spl_associated_token_account::ID;
+        
+        let (expected_pool_account_a, _) = Pubkey::find_program_address(
+            &[
+                self.pool_authority.key().as_ref(),
+                token_2022_program_id.as_ref(),
+                self.mint_a.key().as_ref(),
+            ],
+            &associated_token_program_id,
+        );
+        
+        let (expected_pool_account_b, _) = Pubkey::find_program_address(
+            &[
+                self.pool_authority.key().as_ref(),
+                token_2022_program_id.as_ref(),
+                self.mint_b.key().as_ref(),
+            ],
+            &associated_token_program_id,
+        );
+        
+        let (expected_pool_lp_account, _) = Pubkey::find_program_address(
+            &[
+                self.pool_authority.key().as_ref(),
+                token_2022_program_id.as_ref(),
+                self.lp_mint.key().as_ref(),
+            ],
+            &associated_token_program_id,
+        );
+        
+        // Validate that the provided accounts match the derived ones
+        if expected_pool_account_a != self.pool_account_a.key() {
+            msg!("ERROR: Pool account A mismatch!");
+            return Err(AmmError::InvalidPoolAuthority.into());
+        }
+        if expected_pool_account_b != self.pool_account_b.key() {
+            msg!("ERROR: Pool account B mismatch!");
+            return Err(AmmError::InvalidPoolAuthority.into());
+        }
+        if expected_pool_lp_account != self.pool_lp_account.key() {
+            msg!("ERROR: Pool LP account mismatch!");
+            return Err(AmmError::InvalidPoolAuthority.into());
+        }
+        
+        msg!("Pool accounts validated successfully!");
         
         // Transfer tokens from user to pool
         self.transfer_tokens_to_pool(amount_a, amount_b)?;
@@ -158,7 +230,7 @@ impl<'info> DepositLiquidity<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook program ID first (required by the guide)
+            // Add transfer hook program ID first
             transfer_ix.accounts.push(AccountMeta::new_readonly(
                 self.transfer_hook_program_a.key(),
                 false,
@@ -262,55 +334,28 @@ impl<'info> DepositLiquidity<'info> {
         // Use the stored bump from the pool state
         let pool_authority_bump = self.pool.pool_authority_bump;
         
-        let amm_key = self.amm.key();
+        let pool_key = self.pool.key();
         let mint_a_key = self.mint_a.key();
         let mint_b_key = self.mint_b.key();
         
-        msg!("=== ACCOUNT KEYS DEBUG ===");
-        msg!("AMM key: {}", amm_key);
-        msg!("Mint A key: {}", mint_a_key);
-        msg!("Mint B key: {}", mint_b_key);
-        msg!("Pool authority key: {}", self.pool_authority.key());
-        msg!("LP mint key: {}", self.lp_mint.key());
-        msg!("User LP account key: {}", self.user_lp_account.key());
-        msg!("Pool authority bump: {}", pool_authority_bump);
+        // msg!("=== ACCOUNT KEYS DEBUG ===");
+        // msg!("AMM key: {}", amm_key);
+        // msg!("Mint A key: {}", mint_a_key);
+        // msg!("Mint B key: {}", mint_b_key);
+        // msg!("Pool authority key: {}", self.pool_authority.key());
+        // msg!("LP mint key: {}", self.lp_mint.key());
+        // msg!("User LP account key: {}", self.user_lp_account.key());
+        // msg!("Pool authority bump: {}", pool_authority_bump);
         
         // Create the signer seeds for the pool authority PDA (must match account constraints exactly)
         let authority_seeds = &[
-            amm_key.as_ref(),
+            pool_key.as_ref(),
             mint_a_key.as_ref(),
             mint_b_key.as_ref(),
             POOL_AUTHORITY_SEED,
             &[pool_authority_bump],
         ];
         let signer_seeds = &[&authority_seeds[..]];
-        
-        // Verify PDA derivation matches
-        let (expected_pool_authority, expected_bump) = Pubkey::find_program_address(
-            &[
-                amm_key.as_ref(),
-                mint_a_key.as_ref(),
-                mint_b_key.as_ref(),
-                POOL_AUTHORITY_SEED,
-            ],
-            &crate::ID,
-        );
-        
-        msg!("=== PDA VERIFICATION DEBUG ===");
-        msg!("Expected pool authority: {}", expected_pool_authority);
-        msg!("Actual pool authority: {}", self.pool_authority.key());
-        msg!("Expected bump: {}", expected_bump);
-        msg!("Stored bump: {}", pool_authority_bump);
-        msg!("PDA matches: {}", expected_pool_authority == self.pool_authority.key());
-        msg!("Bump matches: {}", expected_bump == pool_authority_bump);
-        
-        // Check account properties
-        msg!("=== ACCOUNT PROPERTIES DEBUG ===");
-        msg!("User LP account owner: {}", self.user_lp_account.owner);
-        msg!("Pool authority is_writable: {}", self.pool_authority.is_writable);
-        msg!("Pool authority is_signer: {}", self.pool_authority.is_signer);
-        msg!("Pool authority owner: {}", self.pool_authority.owner);
-        msg!("Token program key: {}", self.token_program.key());
         
         // Mint LP tokens using the same pattern as working AMM
         self.mint_token(

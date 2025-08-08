@@ -16,22 +16,20 @@ use crate::{
 impl<'info> CreatePool<'info> {
     pub fn create_pool(&mut self) -> Result<()> {
         let pool = &mut self.pool;
+        let pool_key = pool.key();
         pool.amm = self.amm.key();
         
         pool.mint_a = self.mint_a.key();
         pool.mint_b = self.mint_b.key();
-        // Note: vault_a and vault_b will be set when token accounts are created
-        pool.vault_a = Pubkey::default(); // Will be set in create_pool_token_accounts
-        pool.vault_b = Pubkey::default(); // Will be set in create_pool_token_accounts
         pool.lp_mint = self.mint_liquidity.key();
         pool.total_liquidity = 0;
         
         // Store the pool authority bump for deterministic derivation
         let (_, bump) = Pubkey::find_program_address(
             &[
-                self.amm.key().as_ref(),
-                self.mint_a.key().as_ref(),
-                self.mint_b.key().as_ref(),
+                pool_key.as_ref(),
+                pool.mint_a.as_ref(),
+                pool.mint_b.as_ref(),
                 POOL_AUTHORITY_SEED.as_ref(),
             ],
             &crate::ID,
@@ -78,7 +76,7 @@ pub struct CreatePool<'info> {
     /// CHECK: Pool authority PDA - doesn't need to be created, just derived
     #[account(
         seeds = [
-            amm.key().as_ref(),
+            pool.key().as_ref(),
             mint_a.key().as_ref(),
             mint_b.key().as_ref(),
             POOL_AUTHORITY_SEED,
@@ -99,10 +97,7 @@ pub struct CreatePool<'info> {
     pub mint_liquidity: Box<InterfaceAccount<'info, Mint>>,
 
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
-
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
-
-
 
     /// Solana ecosystem accounts
     pub system_program: Program<'info, System>,

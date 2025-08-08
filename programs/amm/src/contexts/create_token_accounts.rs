@@ -6,6 +6,8 @@ use anchor_spl::{
 use crate::{
     constants::{POOL_AUTHORITY_SEED, AMM_SEED},
     state::{Amm, Pool},
+    errors::AmmError,
+    AmmError::InvalidMint,
 };
 
 #[derive(Accounts)]
@@ -37,16 +39,22 @@ pub struct CreatePoolTokenAccounts<'info> {
     /// CHECK: Pool authority PDA - doesn't need to be created, just derived
     #[account(
         seeds = [
-            amm.key().as_ref(),
+            pool.key().as_ref(),
             mint_a.key().as_ref(),
             mint_b.key().as_ref(),
             POOL_AUTHORITY_SEED,
         ],
-        bump,
+        bump = pool.pool_authority_bump,
     )]
     pub pool_authority: AccountInfo<'info>,
 
+    #[account(
+        constraint = mint_a.key() == pool.mint_a @ InvalidMint
+    )]
     pub mint_a: Box<InterfaceAccount<'info, Mint>>,
+    #[account(
+        constraint = mint_b.key() == pool.mint_b @ InvalidMint
+    )]
     pub mint_b: Box<InterfaceAccount<'info, Mint>>,
     pub lp_mint: Box<InterfaceAccount<'info, Mint>>,
 
@@ -82,10 +90,33 @@ pub struct CreatePoolTokenAccounts<'info> {
 
 impl<'info> CreatePoolTokenAccounts<'info> {
     pub fn create_pool_token_accounts(&mut self) -> Result<()> {
+        // Debug logging
+        msg!("=== CREATE POOL TOKEN ACCOUNTS DEBUG ===");
+        msg!("AMM key: {}", self.amm.key());
+        msg!("Mint A key: {}", self.mint_a.key());
+        msg!("Mint B key: {}", self.mint_b.key());
+        msg!("Pool authority key: {}", self.pool_authority.key());
+        msg!("Pool authority bump: {}", self.pool.pool_authority_bump);
+        
+        // Verify the pool authority derivation
+        let expected_pool_authority = Pubkey::create_program_address(
+            &[
+                self.pool.key().as_ref(),
+                self.mint_a.key().as_ref(),
+                self.mint_b.key().as_ref(),
+                POOL_AUTHORITY_SEED.as_ref(),
+                &[self.pool.pool_authority_bump],
+            ],
+            &crate::ID,
+        ).map_err(|_| AmmError::InvalidPoolAuthority)?;
+        
+        msg!("Expected pool authority: {}", expected_pool_authority);
+        msg!("Actual pool authority: {}", self.pool_authority.key());
+        msg!("Pool authorities match: {}", expected_pool_authority == self.pool_authority.key());
+
         // Update the pool with the vault addresses
-        let pool = &mut self.pool;
-        pool.vault_a = self.pool_account_a.key();
-        pool.vault_b = self.pool_account_b.key();
+        self.pool.vault_a = self.pool_account_a.key();
+        self.pool.vault_b = self.pool_account_b.key();
 
         msg!("Pool token accounts created successfully");
         msg!("Pool account A (vault_a): {}", self.pool_account_a.key());

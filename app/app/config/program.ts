@@ -10,13 +10,16 @@ export const PROGRAM_ID = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL";
 export const NETWORK = "devnet";
 export const RPC_ENDPOINT = "https://api.devnet.solana.com";
 
+// Import RPC configuration
+import { getBestRpcEndpoint, createOptimizedConnection } from './rpc-config';
+
 // AMM configuration
 export const AMM_ID = "AMM2022TokenSwapProgram";
 export const DEFAULT_FEE = 30; // 0.3% in basis points
 
 // Seeds
 export const AMM_SEED = "amm";
-export const POOL_AUTHORITY_SEED = "pool-authority";
+export const POOL_AUTHORITY_SEED = "pool_authority";
 
 // Token program IDs
 export const TOKEN_2022_PROGRAM_ID = "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb";
@@ -27,5 +30,11 @@ import { createSolanaRpc } from '@solana/rpc';
 
 // Create RPC client instance
 export const createRpcClient = () => {
-  return createSolanaRpc(RPC_ENDPOINT);
+  return createSolanaRpc(getBestRpcEndpoint());
 };
+
+// Create optimized connection instance
+export const createConnection = () => {
+  return createOptimizedConnection();
+};
+

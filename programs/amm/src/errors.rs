@@ -18,6 +18,10 @@ pub enum AmmError {
     PoolDoesNotExist,
     #[msg("Invalid pool")]
     InvalidPool,
+    #[msg("Invalid mint")]
+    InvalidMint,
     #[msg("Not a signer")]
     NotSigner,
+    #[msg("Invalid pool authority")]
+    InvalidPoolAuthority,
 } 

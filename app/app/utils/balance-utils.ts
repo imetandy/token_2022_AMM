@@ -31,6 +31,30 @@ export class BalanceUtils {
     this.programId = new PublicKey(PROGRAM_ID);
   }
 
+  /**
+   * Helper function to derive pool authority using findProgramAddressSync
+   */
+  private getPoolAuthorityInternal(
+    poolAddress: PublicKey,
+    tokenA: PublicKey,
+    tokenB: PublicKey
+  ): [PublicKey, number] {
+    // Use findProgramAddressSync to get the canonical bump
+    const [poolAuthority, bump] = PublicKey.findProgramAddressSync(
+      [
+        poolAddress.toBuffer(),
+        tokenA.toBuffer(),
+        tokenB.toBuffer(),
+        Buffer.from('pool_authority')
+      ],
+      this.programId
+    );
+    
+    return [poolAuthority, bump];
+  }
+
+
+
   async getUserTokenBalance(
     mintAddress: PublicKey,
     userAddress: PublicKey
@@ -137,15 +161,11 @@ export class BalanceUtils {
     userAddress: PublicKey
   ): Promise<PoolBalances> {
     try {
-      // Derive pool authority PDA
-      const [poolAuthority] = PublicKey.findProgramAddressSync(
-        [
-          ammAddress.toBuffer(),
-          tokenA.toBuffer(),
-          tokenB.toBuffer(),
-          Buffer.from('pool-authority')
-        ],
-        this.programId
+      // Derive pool authority using findProgramAddressSync
+      const [poolAuthority] = this.getPoolAuthorityInternal(
+        poolAddress,
+        tokenA,
+        tokenB,
       );
 
       // Fetch all balances in parallel
@@ -174,19 +194,11 @@ export class BalanceUtils {
   }
 
   async getPoolAuthority(
-    ammAddress: PublicKey,
+    poolAddress: PublicKey,
     tokenA: PublicKey,
     tokenB: PublicKey
   ): Promise<PublicKey> {
-    const [poolAuthority] = PublicKey.findProgramAddressSync(
-      [
-        ammAddress.toBuffer(),
-        tokenA.toBuffer(),
-        tokenB.toBuffer(),
-        Buffer.from('pool-authority')
-      ],
-      this.programId
-    );
+    const [poolAuthority] = this.getPoolAuthorityInternal(poolAddress, tokenA, tokenB);
     return poolAuthority;
   }
 } 

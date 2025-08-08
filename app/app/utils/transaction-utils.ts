@@ -9,6 +9,7 @@ export interface TransactionResult {
   mintAddress?: string;
   extraAccountMetaListAddress?: string;
   mintTradeCounterAddress?: string;
+  userAccountAddress?: string;
 }
 
 export const getSolanaExplorerUrl = (signature: string, network: string = 'devnet') => {

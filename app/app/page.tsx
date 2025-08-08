@@ -12,19 +12,25 @@ export default function Home() {
   const [createdTokens, setCreatedTokens] = useState<{
     tokenA: string | null;
     tokenB: string | null;
-  }>({ tokenA: null, tokenB: null })
+    userAccountA: string | null;
+    userAccountB: string | null;
+  }>({ tokenA: null, tokenB: null, userAccountA: null, userAccountB: null })
   
   const [createdPool, setCreatedPool] = useState<{
     amm: string | null;
     pool: string | null;
   }>({ amm: null, pool: null })
 
-  const handleTokensSet = useCallback((tokenA: string, tokenB: string) => {
-    setCreatedTokens({ tokenA, tokenB });
+  const [refreshTrigger, setRefreshTrigger] = useState(0)
+
+  const handleTokensSet = useCallback((tokenA: string, tokenB: string, userAccountA: string, userAccountB: string) => {
+    setCreatedTokens({ tokenA, tokenB, userAccountA, userAccountB });
   }, []);
 
   const handlePoolCreated = useCallback((amm: string, pool: string) => {
     setCreatedPool({ amm, pool });
+    // Trigger a refresh when pool is created (which includes liquidity)
+    setRefreshTrigger(prev => prev + 1);
   }, []);
 
   return (
@@ -142,6 +148,7 @@ export default function Home() {
               poolAddress={createdPool.pool}
               ammAddress={createdPool.amm}
               canTrade={!!(createdPool.amm && createdPool.pool)}
+              refreshTrigger={refreshTrigger}
             />
           </div>
         </div>

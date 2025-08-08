@@ -5,6 +5,8 @@ import {
   SystemProgram, 
   Keypair,
   SendTransactionError,
+  LAMPORTS_PER_SOL,
+  ComputeBudgetProgram
 } from '@solana/web3.js';
 import { 
   getAssociatedTokenAddressSync, 
@@ -17,9 +19,96 @@ import {
   COUNTER_HOOK_PROGRAM_ID, 
   TOKEN_2022_PROGRAM_ID 
 } from '../config/program';
+import { 
+  TOKEN_2022_PROGRAM,
+  ASSOCIATED_TOKEN_PROGRAM,
+  TOKEN_SETUP_PROGRAM
+} from '../config/constants';
 import { TransactionResult } from './transaction-utils';
+
 import { Program, AnchorProvider, web3 } from '@coral-xyz/anchor';
 import { Amm } from '../types/amm';
+
+// Pool data structure interface (matches programs/amm/src/state.rs Pool)
+interface PoolData {
+  amm: string;
+  mintA: string;
+  mintB: string;
+  vaultA: string;
+  vaultB: string;
+  lpMint: string;
+  totalLiquidity: number;
+  poolAuthorityBump: number;
+  poolTokenABalance?: number;
+  poolTokenBBalance?: number;
+}
+
+// Extended transaction result with pool data
+interface PoolTransactionResult extends TransactionResult {
+  poolData?: PoolData;
+}
+
+// Function to deserialize pool data
+function deserializePoolData(data: Uint8Array): PoolData | null {
+  try {
+    // Skip the 8-byte discriminator
+    const dataWithoutDiscriminator = data.slice(8);
+    
+    if (dataWithoutDiscriminator.length < 193) { // 32+32+32+32+32+32+8+1 = 193 bytes
+      console.log('Pool data too short:', dataWithoutDiscriminator.length, 'bytes');
+      return null;
+    }
+
+    let offset = 0;
+    
+    // Read amm (32 bytes)
+    const amm = new PublicKey(dataWithoutDiscriminator.slice(offset, offset + 32));
+    offset += 32;
+    
+    // Read mint_a (32 bytes)
+    const mintA = new PublicKey(dataWithoutDiscriminator.slice(offset, offset + 32));
+    offset += 32;
+    
+    // Read mint_b (32 bytes)
+    const mintB = new PublicKey(dataWithoutDiscriminator.slice(offset, offset + 32));
+    offset += 32;
+    
+    // Read vault_a (32 bytes)
+    const vaultA = new PublicKey(dataWithoutDiscriminator.slice(offset, offset + 32));
+    offset += 32;
+    
+    // Read vault_b (32 bytes)
+    const vaultB = new PublicKey(dataWithoutDiscriminator.slice(offset, offset + 32));
+    offset += 32;
+    
+    // Read lp_mint (32 bytes)
+    const lpMint = new PublicKey(dataWithoutDiscriminator.slice(offset, offset + 32));
+    offset += 32;
+    
+    // Read total_liquidity (8 bytes, little-endian)
+    const totalLiquidityBytes = dataWithoutDiscriminator.slice(offset, offset + 8);
+    const totalLiquidity = Number(BigInt.asUintN(64, BigInt('0x' + Array.from(totalLiquidityBytes).reverse().map(b => b.toString(16).padStart(2, '0')).join(''))));
+    offset += 8;
+    
+    // Read pool_authority_bump (1 byte)
+    const poolAuthorityBump = dataWithoutDiscriminator[offset];
+    
+    return {
+      amm: amm.toString(),
+      mintA: mintA.toString(),
+      mintB: mintB.toString(),
+      vaultA: vaultA.toString(),
+      vaultB: vaultB.toString(),
+      lpMint: lpMint.toString(),
+      totalLiquidity,
+      poolAuthorityBump
+    };
+  } catch (error) {
+    console.log('Error deserializing pool data:', error);
+    return null;
+  }
+}
+
 
 export class WalletClientNew {
   private connection: Connection;
@@ -75,8 +164,8 @@ export class WalletClientNew {
           { pubkey: extraAccountMetaListPda, isSigner: false, isWritable: true },
           { pubkey: mintTradeCounterPda, isSigner: false, isWritable: true },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false }
+          { pubkey: TOKEN_2022_PROGRAM, isSigner: false, isWritable: false },
+          { pubkey: ASSOCIATED_TOKEN_PROGRAM, isSigner: false, isWritable: false }
         ],
         data: Buffer.from([
           // Instruction discriminator for createTokenWithHook
@@ -343,12 +432,14 @@ export class WalletClientNew {
 
       console.log('Tokens minted successfully!')
       console.log('Transaction signature:', signature)
+      console.log('User account address:', tokenAccount.toString())
 
       return {
         signature,
         success: true,
         error: null,
-        logs: []
+        logs: [],
+        userAccountAddress: tokenAccount.toString()
       }
 
     } catch (error) {
@@ -508,7 +599,7 @@ export class WalletClientNew {
       console.log('AMM Address:', ammId.toString())
 
       // Derive pool PDA
-      const [poolPda] = PublicKey.findProgramAddressSync(
+      const [poolAddress] = PublicKey.findProgramAddressSync(
         [
           ammId.toBuffer(),
           mintA.toBuffer(),
@@ -516,12 +607,12 @@ export class WalletClientNew {
         ],
         this.ammProgramId
       )
-      console.log('Pool PDA:', poolPda.toString())
+      console.log('Pool PDA:', poolAddress.toString())
 
-      // Derive pool authority PDA
+      // Derive pool authority PDA using pool key instead of AMM key
       const [poolAuthority] = PublicKey.findProgramAddressSync(
         [
-          ammId.toBuffer(),
+          poolAddress.toBuffer(),
           mintA.toBuffer(),
           mintB.toBuffer(),
           Buffer.from('pool_authority')
@@ -558,7 +649,7 @@ export class WalletClientNew {
         keys: [
           { pubkey: walletPublicKey, isSigner: true, isWritable: true },           // 0: payer (first account)
           { pubkey: ammId, isSigner: false, isWritable: false },                   // 1: amm
-          { pubkey: poolPda, isSigner: false, isWritable: true },                  // 2: pool (init - PDA)
+          { pubkey: poolAddress, isSigner: false, isWritable: true },                  // 2: pool (init - PDA)
           { pubkey: poolAuthority, isSigner: false, isWritable: false },          // 3: pool_authority
           { pubkey: mintLiquidityKeypair.publicKey, isSigner: true, isWritable: true }, // 4: mint_liquidity (init)
           { pubkey: mintA, isSigner: false, isWritable: false },                  // 5: mint_a
@@ -625,6 +716,45 @@ export class WalletClientNew {
       console.log('Pool created successfully!')
       console.log('Transaction signature:', signature)
 
+      // Fetch and log pool data
+      try {
+        const poolAccountInfo = await this.connection.getAccountInfo(poolAddress);
+        if (poolAccountInfo) {
+          console.log('=== POOL DATA ===');
+          console.log('Pool Address:', poolAddress.toString());
+          console.log('Pool Account Size:', poolAccountInfo.data.length, 'bytes');
+          console.log('Pool Account Owner:', poolAccountInfo.owner.toString());
+          console.log('Pool Account Lamports:', poolAccountInfo.lamports);
+          console.log('Pool Account Executable:', poolAccountInfo.executable);
+          console.log('Pool Account Rent Epoch:', poolAccountInfo.rentEpoch);
+          
+          // Try to deserialize the pool data
+          try {
+            const poolData = deserializePoolData(poolAccountInfo.data);
+            if (poolData) {
+              console.log('=== POOL DATA (DESERIALIZED) ===');
+              console.log('AMM Address:', poolData.amm);
+              console.log('Mint A:', poolData.mintA);
+              console.log('Mint B:', poolData.mintB);
+              console.log('Vault A:', poolData.vaultA);
+              console.log('Vault B:', poolData.vaultB);
+              console.log('LP Mint:', poolData.lpMint);
+              console.log('Total Liquidity:', poolData.totalLiquidity);
+              console.log('Pool Authority Bump:', poolData.poolAuthorityBump);
+            } else {
+              console.log('Pool Data (raw bytes):', Array.from(poolAccountInfo.data));
+            }
+          } catch (deserializeError) {
+            console.log('Could not deserialize pool data:', deserializeError);
+            console.log('Pool Data (raw bytes):', Array.from(poolAccountInfo.data));
+          }
+        } else {
+          console.log('Pool account not found after creation');
+        }
+      } catch (fetchError) {
+        console.log('Error fetching pool data:', fetchError);
+      }
+
       return {
         signature,
         success: true,
@@ -677,10 +807,10 @@ export class WalletClientNew {
       )
       console.log('Pool Address:', poolAddress.toString())
 
-      // Derive pool authority
+      // Derive pool authority using pool key instead of AMM key
       const [poolAuthority] = PublicKey.findProgramAddressSync(
         [
-          ammAddress.toBuffer(),
+          poolAddress.toBuffer(),
           mintA.toBuffer(),
           mintB.toBuffer(),
           Buffer.from('pool_authority')
@@ -770,6 +900,64 @@ export class WalletClientNew {
 
       console.log('Pool token accounts created successfully!')
       console.log('Transaction signature:', signature)
+
+      // Fetch and log pool data after token accounts are created
+      try {
+        // Derive pool address to fetch its data
+        const [ammId] = PublicKey.findProgramAddressSync(
+          [
+            Buffer.from('amm'),
+            mintA.toBuffer(),
+            mintB.toBuffer()
+          ],
+          this.ammProgramId
+        )
+        
+        const [poolAddress] = PublicKey.findProgramAddressSync(
+          [
+            ammId.toBuffer(),
+            mintA.toBuffer(),
+            mintB.toBuffer()
+          ],
+          this.ammProgramId
+        )
+
+        const poolAccountInfo = await this.connection.getAccountInfo(poolAddress);
+        if (poolAccountInfo) {
+          console.log('=== POOL DATA AFTER TOKEN ACCOUNTS CREATION ===');
+          console.log('Pool Address:', poolAddress.toString());
+          console.log('Pool Account Size:', poolAccountInfo.data.length, 'bytes');
+          console.log('Pool Account Owner:', poolAccountInfo.owner.toString());
+          console.log('Pool Account Lamports:', poolAccountInfo.lamports);
+          console.log('Pool Account Executable:', poolAccountInfo.executable);
+          console.log('Pool Account Rent Epoch:', poolAccountInfo.rentEpoch);
+          
+          // Try to deserialize the pool data
+          try {
+            const poolData = deserializePoolData(poolAccountInfo.data);
+            if (poolData) {
+              console.log('=== POOL DATA AFTER TOKEN ACCOUNTS (DESERIALIZED) ===');
+              console.log('AMM Address:', poolData.amm);
+              console.log('Mint A:', poolData.mintA);
+              console.log('Mint B:', poolData.mintB);
+              console.log('Vault A:', poolData.vaultA);
+              console.log('Vault B:', poolData.vaultB);
+              console.log('LP Mint:', poolData.lpMint);
+              console.log('Total Liquidity:', poolData.totalLiquidity);
+              console.log('Pool Authority Bump:', poolData.poolAuthorityBump);
+            } else {
+              console.log('Pool Data (raw bytes):', Array.from(poolAccountInfo.data));
+            }
+          } catch (deserializeError) {
+            console.log('Could not deserialize pool data:', deserializeError);
+            console.log('Pool Data (raw bytes):', Array.from(poolAccountInfo.data));
+          }
+        } else {
+          console.log('Pool account not found after token accounts creation');
+        }
+      } catch (fetchError) {
+        console.log('Error fetching pool data after token accounts creation:', fetchError);
+      }
 
       return {
         signature,
@@ -888,10 +1076,10 @@ export class WalletClientNew {
 
 
 
-      // Derive pool authority PDA
+      // Derive pool authority PDA using pool key instead of AMM key
       const [poolAuthorityPda] = PublicKey.findProgramAddressSync(
         [
-          ammId.toBuffer(),
+          poolPda.toBuffer(),
           mintA.toBuffer(),
           mintB.toBuffer(),
           Buffer.from('pool_authority')
@@ -973,6 +1161,12 @@ export class WalletClientNew {
         ])
       }
 
+      // Set higher compute unit limit for transfer hook calls
+      const setComputeUnitLimitIx = ComputeBudgetProgram.setComputeUnitLimit({
+        units: 400_000 // Increase from default 200,000 to handle transfer hooks
+      })
+      transaction.add(setComputeUnitLimitIx)
+      
       // First transaction: Create the pool
       transaction.add(createPoolIx)
 
@@ -1158,7 +1352,7 @@ export class WalletClientNew {
     transferHookProgramIdA: PublicKey,
     transferHookProgramIdB: PublicKey,
     signTransaction: (transaction: Transaction) => Promise<Transaction>
-  ): Promise<TransactionResult> {
+  ): Promise<PoolTransactionResult> {
     try {
       console.log('Depositing liquidity...')
       console.log('Amount A:', amountA)
@@ -1187,10 +1381,10 @@ export class WalletClientNew {
         new PublicKey(TOKEN_2022_PROGRAM_ID)
       )
 
-      // Derive pool authority
+      // Derive pool authority using pool key instead of AMM key
       const [poolAuthority] = PublicKey.findProgramAddressSync(
         [
-          ammId.toBuffer(),
+          poolAddress.toBuffer(),
           mintA.toBuffer(),
           mintB.toBuffer(),
           Buffer.from('pool_authority')
@@ -1213,7 +1407,6 @@ export class WalletClientNew {
         new PublicKey(TOKEN_2022_PROGRAM_ID)
       )
 
-      // Get pool liquidity account
       const poolLiquidityAccount = getAssociatedTokenAddressSync(
         mintLiquidity,
         poolAuthority,
@@ -1292,6 +1485,13 @@ export class WalletClientNew {
       }
 
       const transaction = new Transaction()
+      
+      // Set higher compute unit limit for transfer hook calls
+      const setComputeUnitLimitIx = ComputeBudgetProgram.setComputeUnitLimit({
+        units: 400_000 // Increase from default 200,000 to handle transfer hooks
+      })
+      transaction.add(setComputeUnitLimitIx)
+      
       transaction.add(depositLiquidityIx)
 
       // Set fee payer and recent blockhash before signing
@@ -1323,11 +1523,32 @@ export class WalletClientNew {
       console.log('Liquidity deposited successfully!')
       console.log('Transaction signature:', signature)
 
+      // Fetch pool data & balances
+      let finalPoolData: PoolData | undefined;
+      try {
+        const poolAccountInfo = await this.connection.getAccountInfo(poolAddress);
+        if (poolAccountInfo) {
+          const poolData = deserializePoolData(poolAccountInfo.data);
+          if (poolData) {
+            const poolAccountABalance = await this.connection.getTokenAccountBalance(poolAccountA);
+            const poolAccountBBalance = await this.connection.getTokenAccountBalance(poolAccountB);
+            finalPoolData = {
+              ...poolData,
+              poolTokenABalance: poolAccountABalance.value.uiAmount || 0,
+              poolTokenBBalance: poolAccountBBalance.value.uiAmount || 0
+            };
+          }
+        }
+      } catch (error) {
+        console.log('Error getting final pool data:', error);
+      }
+
       return {
         signature,
         success: true,
         error: null,
-        logs: []
+        logs: [],
+        poolData: finalPoolData,
       }
 
     } catch (error) {
@@ -1360,6 +1581,8 @@ export class WalletClientNew {
     swapA: boolean,
     inputAmount: number,
     minOutputAmount: number,
+    transferHookProgramIdA: PublicKey,
+    transferHookProgramIdB: PublicKey,
     signTransaction: (transaction: Transaction) => Promise<Transaction>
   ): Promise<TransactionResult> {
     try {
@@ -1368,16 +1591,22 @@ export class WalletClientNew {
       console.log('Input amount:', inputAmount)
       console.log('Min output amount:', minOutputAmount)
 
-      // Derive pool authority
+      // Derive pool authority using pool key instead of AMM key
       const [poolAuthority] = PublicKey.findProgramAddressSync(
         [
-          ammId.toBuffer(),
+          poolAddress.toBuffer(),
           mintA.toBuffer(),
           mintB.toBuffer(),
           Buffer.from('pool_authority')
         ],
         this.ammProgramId
       )
+
+      console.log('=== SWAP DEBUG ===')
+      console.log('Pool Authority derived:', poolAuthority.toString())
+      console.log('Pool Address:', poolAddress.toString())
+      console.log('Mint A:', mintA.toString())
+      console.log('Mint B:', mintB.toString())
 
       // Get trader accounts
       const traderAccountA = getAssociatedTokenAddressSync(
@@ -1409,6 +1638,31 @@ export class WalletClientNew {
         new PublicKey(TOKEN_2022_PROGRAM_ID)
       )
 
+      console.log('Pool Account A derived:', poolAccountA.toString())
+      console.log('Pool Account B derived:', poolAccountB.toString())
+
+      // Derive transfer hook accounts for mint A
+      const [extraAccountMetaListA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('extra-account-metas'), mintA.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
+      const [mintTradeCounterA] = PublicKey.findProgramAddressSync(
+        [Buffer.from('mint-trade-counter'), mintA.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
+      // Derive transfer hook accounts for mint B
+      const [extraAccountMetaListB] = PublicKey.findProgramAddressSync(
+        [Buffer.from('extra-account-metas'), mintB.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
+      const [mintTradeCounterB] = PublicKey.findProgramAddressSync(
+        [Buffer.from('mint-trade-counter'), mintB.toBuffer()],
+        this.tokenSetupProgramId
+      )
+
       const swapIx = {
         programId: this.ammProgramId,
         keys: [
@@ -1424,11 +1678,17 @@ export class WalletClientNew {
           { pubkey: walletPublicKey, isSigner: true, isWritable: false },
           { pubkey: SystemProgram.programId, isSigner: false, isWritable: false },
           { pubkey: new PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
-          { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false }
+          { pubkey: new PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: extraAccountMetaListA, isSigner: false, isWritable: false },
+          { pubkey: mintTradeCounterA, isSigner: false, isWritable: true },
+          { pubkey: extraAccountMetaListB, isSigner: false, isWritable: false },
+          { pubkey: mintTradeCounterB, isSigner: false, isWritable: true },
+          { pubkey: transferHookProgramIdA, isSigner: false, isWritable: false },
+          { pubkey: transferHookProgramIdB, isSigner: false, isWritable: false }
         ],
         data: Buffer.from([
-          // Instruction discriminator for swapExactTokensForTokens
-          249, 86, 253, 50, 177, 221, 73, 162,
+          // Instruction discriminator for swap
+          248, 198, 158, 145, 225, 117, 135, 200,
           // Swap A (bool)
           swapA ? 1 : 0,
           // Input amount (u64)

@@ -168,7 +168,7 @@ export type Amm = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "amm"
+                "path": "pool"
               },
               {
                 "kind": "account",
@@ -299,7 +299,7 @@ export type Amm = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "amm"
+                "path": "pool"
               },
               {
                 "kind": "account",
@@ -689,7 +689,7 @@ export type Amm = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "amm"
+                "path": "pool"
               },
               {
                 "kind": "account",
@@ -728,12 +728,10 @@ export type Amm = {
           "name": "mintB"
         },
         {
-          "name": "poolAccountA",
-          "writable": true
+          "name": "poolAccountA"
         },
         {
-          "name": "poolAccountB",
-          "writable": true
+          "name": "poolAccountB"
         },
         {
           "name": "userAccountA",
@@ -1006,94 +1004,7 @@ export type Amm = {
           }
         },
         {
-          "name": "poolLpAccount",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "poolAuthority"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "lpMint"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "name": "poolLpAccount"
         },
         {
           "name": "lpMint",
@@ -1218,7 +1129,7 @@ export type Amm = {
             "seeds": [
               {
                 "kind": "account",
-                "path": "amm"
+                "path": "pool"
               },
               {
                 "kind": "account",
@@ -1257,184 +1168,10 @@ export type Amm = {
           "name": "mintB"
         },
         {
-          "name": "poolAccountA",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "poolAuthority"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "mintA"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "name": "poolAccountA"
         },
         {
-          "name": "poolAccountB",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "account",
-                "path": "poolAuthority"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  6,
-                  221,
-                  246,
-                  225,
-                  215,
-                  101,
-                  161,
-                  147,
-                  217,
-                  203,
-                  225,
-                  70,
-                  206,
-                  235,
-                  121,
-                  172,
-                  28,
-                  180,
-                  133,
-                  237,
-                  95,
-                  91,
-                  55,
-                  145,
-                  58,
-                  140,
-                  245,
-                  133,
-                  126,
-                  255,
-                  0,
-                  169
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "mintB"
-              }
-            ],
-            "program": {
-              "kind": "const",
-              "value": [
-                140,
-                151,
-                37,
-                143,
-                78,
-                36,
-                137,
-                241,
-                187,
-                61,
-                16,
-                41,
-                20,
-                142,
-                13,
-                131,
-                11,
-                90,
-                19,
-                153,
-                218,
-                255,
-                16,
-                132,
-                4,
-                142,
-                123,
-                216,
-                219,
-                233,
-                248,
-                89
-              ]
-            }
-          }
+          "name": "poolAccountB"
         },
         {
           "name": "userAccountA",
@@ -1634,6 +1371,32 @@ export type Amm = {
         {
           "name": "tokenProgram",
           "address": "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb"
+        },
+        {
+          "name": "extraAccountMetaListA",
+          "docs": [
+            "Transfer hook accounts for mint A"
+          ]
+        },
+        {
+          "name": "mintTradeCounterA",
+          "writable": true
+        },
+        {
+          "name": "extraAccountMetaListB",
+          "docs": [
+            "Transfer hook accounts for mint B"
+          ]
+        },
+        {
+          "name": "mintTradeCounterB",
+          "writable": true
+        },
+        {
+          "name": "transferHookProgramA"
+        },
+        {
+          "name": "transferHookProgramB"
         }
       ],
       "args": [
@@ -1833,8 +1596,18 @@ export type Amm = {
     },
     {
       "code": 6008,
+      "name": "invalidMint",
+      "msg": "Invalid mint"
+    },
+    {
+      "code": 6009,
       "name": "notSigner",
       "msg": "Not a signer"
+    },
+    {
+      "code": 6010,
+      "name": "invalidPoolAuthority",
+      "msg": "Invalid pool authority"
     }
   ],
   "types": [
