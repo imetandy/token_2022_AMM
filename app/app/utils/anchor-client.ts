@@ -208,11 +208,11 @@ export class AnchorClient {
 
     const COUNTER_HOOK_PROGRAM = new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
     const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintA.toBuffer(), COUNTER_HOOK_PROGRAM.toBuffer()],
+      [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintA.toBuffer()],
       TOKEN_SETUP_PROGRAM
     )
     const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync(
-      [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintB.toBuffer(), COUNTER_HOOK_PROGRAM.toBuffer()],
+      [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintB.toBuffer()],
       TOKEN_SETUP_PROGRAM
     )
     const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync(
@@ -304,7 +304,6 @@ export class AnchorClient {
       const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync([
         Buffer.from(EXTRA_ACCOUNT_METAS_SEED),
         mintA.toBuffer(),
-        COUNTER_HOOK_PROGRAM.toBuffer(),
       ], TOKEN_SETUP_PROGRAM)
 
       const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync([
@@ -315,7 +314,6 @@ export class AnchorClient {
       const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync([
         Buffer.from(EXTRA_ACCOUNT_METAS_SEED),
         mintB.toBuffer(),
-        COUNTER_HOOK_PROGRAM.toBuffer(),
       ], TOKEN_SETUP_PROGRAM)
 
       const [mintTradeCounterB] = web3.PublicKey.findProgramAddressSync([

@@ -35,10 +35,10 @@ pub struct CreateTokenWithHook<'info> {
     /// CHECK: Counter hook program for transfer hooks
     pub counter_hook_program: UncheckedAccount<'info>,
 
-    /// CHECK: Extra account meta list for mint
+    /// CHECK: Extra account meta list for mint (Token-2022 resolves at seeds ["extra-account-metas", mint])
     #[account(
         init_if_needed,
-        seeds = [b"extra-account-metas", mint.key().as_ref(), counter_hook_program.key().as_ref()],
+        seeds = [b"extra-account-metas", mint.key().as_ref()],
         bump,
         payer = payer,
         space = 128 // Increased space for ExtraAccountMetaList with 1 account

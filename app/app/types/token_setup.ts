@@ -75,10 +75,6 @@ export type TokenSetup = {
               {
                 "kind": "account",
                 "path": "mint"
-              },
-              {
-                "kind": "account",
-                "path": "counterHookProgram"
               }
             ]
           }
@@ -164,43 +160,6 @@ export type TokenSetup = {
               {
                 "kind": "account",
                 "path": "mint"
-              },
-              {
-                "kind": "const",
-                "value": [
-                  236,
-                  202,
-                  242,
-                  135,
-                  15,
-                  11,
-                  123,
-                  251,
-                  138,
-                  95,
-                  27,
-                  41,
-                  74,
-                  114,
-                  101,
-                  84,
-                  186,
-                  33,
-                  240,
-                  213,
-                  235,
-                  200,
-                  174,
-                  103,
-                  178,
-                  37,
-                  192,
-                  231,
-                  148,
-                  119,
-                  111,
-                  207
-                ]
               }
             ]
           }
