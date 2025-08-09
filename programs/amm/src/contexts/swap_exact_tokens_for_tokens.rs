@@ -6,6 +6,7 @@ use anchor_spl::{
 use anchor_spl::token_interface::spl_token_2022;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::program::{invoke, invoke_signed};
+use anchor_lang::solana_program::sysvar;
 use anchor_spl::token_interface::TokenAccount;
 use crate::{
     constants::{POOL_AUTHORITY_SEED, AMM_SEED},
@@ -110,6 +111,10 @@ pub struct Swap<'info> {
 
     /// CHECK: Transfer hook program for mint B
     pub transfer_hook_program_b: AccountInfo<'info>,
+
+    /// CHECK: Instructions sysvar
+    #[account(address = sysvar::instructions::ID)]
+    pub instructions_sysvar: AccountInfo<'info>,
 }
 
 impl<'info> Swap<'info> {
@@ -198,6 +203,7 @@ impl<'info> Swap<'info> {
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_a.key(), false));
             transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_a.key(), false));
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_a.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new_readonly(sysvar::instructions::id(), false));
             
             // Invoke the modified instruction
             let account_infos = &[
@@ -209,6 +215,7 @@ impl<'info> Swap<'info> {
                 self.extra_account_meta_list_a.to_account_info(),
                 self.mint_trade_counter_a.to_account_info(),
                 self.transfer_hook_program_a.to_account_info(),
+                self.instructions_sysvar.to_account_info(),
             ];
             
             invoke(&transfer_ix, account_infos)?;
@@ -229,6 +236,7 @@ impl<'info> Swap<'info> {
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_b.key(), false));
             transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_b.key(), false));
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_b.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new_readonly(sysvar::instructions::id(), false));
             
             // Invoke the modified instruction
             let account_infos = &[
@@ -240,6 +248,7 @@ impl<'info> Swap<'info> {
                 self.extra_account_meta_list_b.to_account_info(),
                 self.mint_trade_counter_b.to_account_info(),
                 self.transfer_hook_program_b.to_account_info(),
+                self.instructions_sysvar.to_account_info(),
             ];
             
             invoke(&transfer_ix, account_infos)?;
@@ -283,6 +292,7 @@ impl<'info> Swap<'info> {
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_a.key(), false));
             transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_a.key(), false));
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_a.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new_readonly(sysvar::instructions::id(), false));
             
             // Invoke the modified instruction with PDA signing
             let account_infos = &[
@@ -294,6 +304,7 @@ impl<'info> Swap<'info> {
                 self.extra_account_meta_list_a.to_account_info(),
                 self.mint_trade_counter_a.to_account_info(),
                 self.transfer_hook_program_a.to_account_info(),
+                self.instructions_sysvar.to_account_info(),
             ];
             
             invoke_signed(&transfer_ix, account_infos, &[&authority_seeds[..]])?;
@@ -314,6 +325,7 @@ impl<'info> Swap<'info> {
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_b.key(), false));
             transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_b.key(), false));
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_b.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new_readonly(sysvar::instructions::id(), false));
             
             // Invoke the modified instruction with PDA signing
             let account_infos = &[
@@ -325,6 +337,7 @@ impl<'info> Swap<'info> {
                 self.extra_account_meta_list_b.to_account_info(),
                 self.mint_trade_counter_b.to_account_info(),
                 self.transfer_hook_program_b.to_account_info(),
+                self.instructions_sysvar.to_account_info(),
             ];
             
             invoke_signed(&transfer_ix, account_infos, &[&authority_seeds[..]])?;

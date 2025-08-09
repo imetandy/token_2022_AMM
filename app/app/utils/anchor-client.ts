@@ -249,6 +249,7 @@ export class AnchorClient {
         mintTradeCounterB,
         transferHookProgramA: transferHookProgramId,
         transferHookProgramB: transferHookProgramId,
+        instructionsSysvar: new web3.PublicKey('Sysvar1nstructions1111111111111111111111111'),
       })
       .transaction()
 
@@ -345,6 +346,7 @@ export class AnchorClient {
           mintTradeCounterB,
           transferHookProgramA: transferHookProgramIdA,
           transferHookProgramB: transferHookProgramIdB,
+          instructionsSysvar: new web3.PublicKey('Sysvar1nstructions1111111111111111111111111'),
         })
         .transaction()
 

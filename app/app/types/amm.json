@@ -1058,6 +1058,10 @@
         },
         {
           "name": "transfer_hook_program_b"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -1442,6 +1446,10 @@
         },
         {
           "name": "transfer_hook_program_b"
+        },
+        {
+          "name": "instructions_sysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [

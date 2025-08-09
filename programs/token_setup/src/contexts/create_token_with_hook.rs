@@ -88,7 +88,7 @@ impl<'info> CreateTokenWithHook<'info> {
         use spl_tlv_account_resolution::state::ExtraAccountMetaList;
         use spl_tlv_account_resolution::account::ExtraAccountMeta;
         use spl_tlv_account_resolution::seeds::Seed;
-        use anchor_spl::token_2022_extensions::spl_token_metadata_interface::state::TokenMetadata;
+        use spl_transfer_hook_interface::instruction::ExecuteInstruction;
         
         // Create extra account meta for the mint trade counter
         let mint_trade_counter_meta = ExtraAccountMeta::new_with_seeds(
@@ -100,7 +100,7 @@ impl<'info> CreateTokenWithHook<'info> {
             true,  // is writable
         )?;
         
-        ExtraAccountMetaList::init::<TokenMetadata>(
+        ExtraAccountMetaList::init::<ExecuteInstruction>(
             extra_account_meta_list_data,
             &[mint_trade_counter_meta],
         )?;

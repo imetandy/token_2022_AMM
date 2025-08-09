@@ -1064,6 +1064,10 @@ export type Amm = {
         },
         {
           "name": "transferHookProgramB"
+        },
+        {
+          "name": "instructionsSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [
@@ -1448,6 +1452,10 @@ export type Amm = {
         },
         {
           "name": "transferHookProgramB"
+        },
+        {
+          "name": "instructionsSysvar",
+          "address": "Sysvar1nstructions1111111111111111111111111"
         }
       ],
       "args": [

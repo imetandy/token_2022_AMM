@@ -7,6 +7,7 @@ use anchor_spl::token_interface::spl_token_2022;
 use anchor_lang::solana_program::instruction::AccountMeta;
 use anchor_lang::solana_program::program::invoke;
 use anchor_lang::solana_program::pubkey::Pubkey;
+use anchor_lang::solana_program::sysvar;
 use anchor_spl::associated_token::spl_associated_token_account;
 use std::str::FromStr;
 
@@ -133,6 +134,10 @@ pub struct DepositLiquidity<'info> {
 
     /// CHECK: Transfer hook program for mint B
     pub transfer_hook_program_b: AccountInfo<'info>,
+
+    /// CHECK: Instructions sysvar
+    #[account(address = sysvar::instructions::ID)]
+    pub instructions_sysvar: AccountInfo<'info>,
 }
 
 impl<'info> DepositLiquidity<'info> {
@@ -142,17 +147,6 @@ impl<'info> DepositLiquidity<'info> {
         amount_b: u64,
     ) -> Result<()> {
         
-        // Verify the pool authority derivation
-        let expected_pool_authority = Pubkey::create_program_address(
-            &[
-                self.pool.key().as_ref(),
-                self.mint_a.key().as_ref(),
-                self.mint_b.key().as_ref(),
-                POOL_AUTHORITY_SEED.as_ref(),
-                &[self.pool.pool_authority_bump],
-            ],
-            &crate::ID,
-        ).map_err(|_| AmmError::InvalidPoolAuthority)?;
         
         // Derive pool accounts on-chain using Token-2022 program
         let token_2022_program_id = Pubkey::from_str("TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb").unwrap();
@@ -237,6 +231,8 @@ impl<'info> DepositLiquidity<'info> {
             transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_a.key(), false));
             // 3) the transfer hook program id must be present so the token program can CPI into it
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_a.key(), false));
+            // 4) sysvar instructions (some hooks require it)
+            transfer_ix.accounts.push(AccountMeta::new_readonly(sysvar::instructions::id(), false));
                         
             // Invoke the modified instruction
             let account_infos = &[
@@ -248,6 +244,7 @@ impl<'info> DepositLiquidity<'info> {
                 self.extra_account_meta_list_a.to_account_info(),
                 self.mint_trade_counter_a.to_account_info(),
                 self.transfer_hook_program_a.to_account_info(),
+                self.instructions_sysvar.to_account_info(),
             ];
             
             // Account infos prepared for transfer
@@ -274,6 +271,7 @@ impl<'info> DepositLiquidity<'info> {
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_b.key(), false));
             transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_b.key(), false));
             transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_b.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new_readonly(sysvar::instructions::id(), false));
             
             // Invoke the modified instruction
             let account_infos = &[
@@ -285,6 +283,7 @@ impl<'info> DepositLiquidity<'info> {
                 self.extra_account_meta_list_b.to_account_info(),
                 self.mint_trade_counter_b.to_account_info(),
                 self.transfer_hook_program_b.to_account_info(),
+                self.instructions_sysvar.to_account_info(),
             ];
             
             invoke(&transfer_ix, account_infos)?;

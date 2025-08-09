@@ -44,7 +44,7 @@ impl<'info> InitializeExtraAccountMetaList<'info> {
         msg!("Step 1: Initializing ExtraAccountMetaList...");
         // Initialize an empty ExtraAccountMetaList
         // This means our transfer hook doesn't require any extra accounts
-        use anchor_spl::token_2022_extensions::spl_token_metadata_interface::state::TokenMetadata;
+use spl_transfer_hook_interface::instruction::ExecuteInstruction;
         
         let extra_account_meta_list_data = &mut self.extra_account_meta_list.data.borrow_mut();
         msg!("Extra account meta list data length: {}", extra_account_meta_list_data.len());
@@ -71,7 +71,7 @@ impl<'info> InitializeExtraAccountMetaList<'info> {
             true,  // is writable
         )?;
         
-        ExtraAccountMetaList::init::<TokenMetadata>(
+        ExtraAccountMetaList::init::<ExecuteInstruction>(
             extra_account_meta_list_data,
             &[mint_trade_counter_meta],
         )?;
