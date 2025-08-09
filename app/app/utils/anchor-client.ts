@@ -56,7 +56,15 @@ export class AnchorClient {
       skipPreflight: true,
       maxRetries: 3,
     })
+    console.log('[signAndSend] submitted tx:', `https://explorer.solana.com/tx/${sig}?cluster=devnet`)
     const conf = await waitForConfirmation(this.connection, sig, 60000, 'confirmed')
+    if (conf.value.err) {
+      console.error('[signAndSend] tx failed:', conf.value.err)
+      try {
+        const txInfo = await this.connection.getTransaction(sig, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 })
+        console.error('[signAndSend] logs:', txInfo?.meta?.logMessages)
+      } catch {}
+    }
     return { signature: sig, err: conf.value.err }
   }
 
@@ -198,10 +206,23 @@ export class AnchorClient {
     console.log('[depositLiquidity] tokenProgram (Token-2022):', TOKEN_2022_PROGRAM.toBase58())
     console.log('[depositLiquidity] associatedTokenProgram:', ASSOCIATED_TOKEN_PROGRAM.toBase58())
 
-    const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync([Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintA.toBuffer()], TOKEN_SETUP_PROGRAM)
-    const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync([Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintB.toBuffer()], TOKEN_SETUP_PROGRAM)
-    const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync([Buffer.from(MINT_TRADE_COUNTER_SEED), mintA.toBuffer()], TOKEN_SETUP_PROGRAM)
-    const [mintTradeCounterB] = web3.PublicKey.findProgramAddressSync([Buffer.from(MINT_TRADE_COUNTER_SEED), mintB.toBuffer()], TOKEN_SETUP_PROGRAM)
+    const COUNTER_HOOK_PROGRAM = new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
+    const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintA.toBuffer(), COUNTER_HOOK_PROGRAM.toBuffer()],
+      TOKEN_SETUP_PROGRAM
+    )
+    const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintB.toBuffer(), COUNTER_HOOK_PROGRAM.toBuffer()],
+      TOKEN_SETUP_PROGRAM
+    )
+    const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(MINT_TRADE_COUNTER_SEED), mintA.toBuffer()],
+      COUNTER_HOOK_PROGRAM
+    )
+    const [mintTradeCounterB] = web3.PublicKey.findProgramAddressSync(
+      [Buffer.from(MINT_TRADE_COUNTER_SEED), mintB.toBuffer()],
+      COUNTER_HOOK_PROGRAM
+    )
 
     const tx = await this.program.methods
       .depositLiquidity(new BN(amountA), new BN(amountB))
@@ -231,6 +252,7 @@ export class AnchorClient {
       })
       .transaction()
 
+    console.log('[depositLiquidity] sending transaction...')
     const res = await this.signAndSend(tx, signTransaction)
     return { signature: res.signature, success: !res.err }
   }
@@ -277,25 +299,28 @@ export class AnchorClient {
       console.log('User Account B:', userAccountB.toString())
 
       // Derive transfer hook accounts using kit PDA helper
+      const COUNTER_HOOK_PROGRAM = new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
       const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync([
         Buffer.from(EXTRA_ACCOUNT_METAS_SEED),
         mintA.toBuffer(),
+        COUNTER_HOOK_PROGRAM.toBuffer(),
       ], TOKEN_SETUP_PROGRAM)
 
       const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync([
         Buffer.from(MINT_TRADE_COUNTER_SEED),
         mintA.toBuffer(),
-      ], TOKEN_SETUP_PROGRAM)
+      ], COUNTER_HOOK_PROGRAM)
 
       const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync([
         Buffer.from(EXTRA_ACCOUNT_METAS_SEED),
         mintB.toBuffer(),
+        COUNTER_HOOK_PROGRAM.toBuffer(),
       ], TOKEN_SETUP_PROGRAM)
 
       const [mintTradeCounterB] = web3.PublicKey.findProgramAddressSync([
         Buffer.from(MINT_TRADE_COUNTER_SEED),
         mintB.toBuffer(),
-      ], TOKEN_SETUP_PROGRAM)
+      ], COUNTER_HOOK_PROGRAM)
 
       // Use Anchor's generated instruction with proper account mapping
       const tx = await this.program.methods

@@ -7,17 +7,9 @@ import { TransactionResult } from '../utils/transaction-utils'
 import { createRpc } from '../config/rpc-config'
 import { createFundedKeypair } from '../utils/devnet-utils'
 import { AMM_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '../config/program'
+import { TOKEN_SETUP_PROGRAM_ID } from '../config/constants'
 import TransactionResultComponent from './TransactionResult'
-import { getDepositLiquidityInstruction } from '../clients/amm/instructions/depositLiquidity'
-import {
-  createTransactionMessage,
-  appendTransactionMessageInstructions,
-  setTransactionMessageFeePayerSigner,
-  setTransactionMessageLifetimeUsingBlockhash,
-  signTransactionMessageWithSigners,
-  sendAndConfirmTransactionFactory,
-} from '@solana/kit'
-import { getBestRpcEndpoint } from '../config/rpc-config'
+import { AnchorClient } from '../utils/anchor-client'
 
 interface LiquidityFormProps {
   tokenA?: string | null
@@ -27,7 +19,7 @@ interface LiquidityFormProps {
 }
 
 export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidityAdded }: LiquidityFormProps) {
-  const { publicKey } = useWallet()
+  const { publicKey, signTransaction } = useWallet()
   const { connection } = useConnection()
   const rpc = createRpc()
   
@@ -66,11 +58,6 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
       console.log('Token A:', tokenA)
       console.log('Token B:', tokenB)
 
-      // Create a funded keypair for the payer (for demo purposes)
-      console.log('Creating funded keypair for demo...')
-      const payerKeypair = await createFundedKeypair()
-      console.log('Payer keypair funded:', payerKeypair.publicKey.toString())
-      
       // Convert amounts to proper format (assuming 6 decimals)
       const amountA = Math.floor(parseFloat(liquidityData.amountA) * 1e6)
       const amountB = Math.floor(parseFloat(liquidityData.amountB) * 1e6)
@@ -128,26 +115,9 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
       ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
       const poolLpAccountAddr = poolLpAccount.toBase58()
 
-      const [userAccountA] = anchorWeb3.PublicKey.findProgramAddressSync([
-        payerKeypair.publicKey.toBuffer(),
-        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
-        poolMintA.toBuffer(),
-      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
-      const userAccountAAddr = userAccountA.toBase58()
-
-      const [userAccountB] = anchorWeb3.PublicKey.findProgramAddressSync([
-        payerKeypair.publicKey.toBuffer(),
-        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
-        poolMintB.toBuffer(),
-      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
-      const userAccountBAddr = userAccountB.toBase58()
-
-      const [userLpAccount] = anchorWeb3.PublicKey.findProgramAddressSync([
-        payerKeypair.publicKey.toBuffer(),
-        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
-        lpMintAddress.toBuffer(),
-      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
-      const userLpAccountAddr = userLpAccount.toBase58()
+      // Prepare Anchor client
+      if (!signTransaction) throw new Error('Wallet does not support transaction signing')
+      const anchorClient = new AnchorClient(connection, { publicKey, signTransaction } as any)
 
       console.log('=== LIQUIDITY FORM DEBUG ===');
       console.log('Pool mint A (stored):', poolMintA.toString());
@@ -158,56 +128,21 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
       console.log('LP mint address:', lpMintAddress.toString());
       console.log('Using original tokens as instruction parameters');
 
+      const result = await anchorClient.depositLiquidity(
+        new anchorWeb3.PublicKey(tokenA as string),
+        new anchorWeb3.PublicKey(tokenB as string),
+        new anchorWeb3.PublicKey(poolAddress as string),
+        lpMintAddress,
+        amountA,
+        amountB,
+        new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID),
+        signTransaction as any,
+      )
 
-
-      // Build deposit liquidity instruction via generated builder
-      const ix = getDepositLiquidityInstruction({
-        amm: ammId.toBase58(),
-        pool: poolAddress,
-        poolAuthority: poolAuthorityPk.toBase58(),
-        mintA: poolMintA.toBase58(),
-        mintB: poolMintB.toBase58(),
-        // Explicitly pass ATAs to satisfy on-chain associated constraints
-        poolAccountA: poolAccountAAddr,
-        poolAccountB: poolAccountBAddr,
-        userAccountA: userAccountAAddr,
-        userAccountB: userAccountBAddr,
-        userLpAccount: userAccountAAddr,
-        poolLpAccount: poolLpAccountAddr,
-        lpMint: lpMintAddress.toBase58(),
-        user: payerKeypair as any,
-        // Token programs
-        tokenProgram: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        extraAccountMetaListA: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('extra-account-metas'), poolMintA.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
-        mintTradeCounterA: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('mint-trade-counter'), poolMintA.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
-        extraAccountMetaListB: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('extra-account-metas'), poolMintB.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
-        mintTradeCounterB: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('mint-trade-counter'), poolMintB.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
-        transferHookProgramA: COUNTER_HOOK_PROGRAM_ID,
-        transferHookProgramB: COUNTER_HOOK_PROGRAM_ID,
-        amountA: amountA,
-        amountB: amountB,
-      } as any)
-
-      // Add compute budget instructions to increase CU and price
-      const cuLimitIx = anchorWeb3.ComputeBudgetProgram.setComputeUnitLimit({ units: 600_000 }) as any
-      const cuPriceIx = anchorWeb3.ComputeBudgetProgram.setComputeUnitPrice({ microLamports: 5_000 }) as any
-
-      const { value: { blockhash, lastValidBlockHeight } } = await rpc.getLatestBlockhash().send()
-      const message0 = createTransactionMessage({ version: 0 } as any)
-      const message1 = appendTransactionMessageInstructions(message0 as any, [cuLimitIx, cuPriceIx, ix] as any)
-      const message2 = setTransactionMessageFeePayerSigner(message1 as any, payerKeypair as any)
-      const message3 = setTransactionMessageLifetimeUsingBlockhash(message2 as any, { blockhash, lastValidBlockHeight } as any)
-      const signed = await signTransactionMessageWithSigners(message3 as any, { signers: [payerKeypair] } as any)
-      const { createSolanaRpcSubscriptions } = await import('@solana/kit')
-      const rpcSubscriptions = createSolanaRpcSubscriptions(getBestRpcEndpoint() as any)
-      const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc, rpcSubscriptions } as any)
-      const signature = await sendAndConfirm(signed as any, { commitment: 'confirmed', lastValidBlockHeight } as any)
-
-      setTransactionResult({ signature: typeof signature === 'string' ? signature : '', success: true, error: null } as TransactionResult)
+      setTransactionResult({ signature: result.signature, success: result.success, error: result.success ? null : (result as any).error } as TransactionResult)
       setLiquidityAdded(true)
       onLiquidityAdded?.()
-      console.log('Liquidity added successfully:', signature)
+      console.log('Liquidity added successfully:', result.signature)
       
     } catch (error) {
       console.error('Error adding liquidity:', error)

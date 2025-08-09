@@ -13,6 +13,8 @@ import ConsoleOverlay from './components/fishing/ConsoleOverlay'
 import AMMFishermanWidget from '@/widgets/AMMFishermanWidget'
 import { TokenSetup } from './utils/token-setup'
 import { AMM_PROGRAM_ID } from './config/program'
+import { createSolanaRpc } from '@solana/rpc'
+
 type Connection = any
 
 export default function Home() {
@@ -51,6 +53,7 @@ export default function Home() {
   const [counters, setCounters] = useState<{ a?: number | null; b?: number | null }>({ a: null, b: null })
   const refreshCounters = useCallback(async () => {
     try {
+      if (!depositDone) return
       if (!createdTokens.tokenA && !createdTokens.tokenB) return
       const { web3 } = await import('@coral-xyz/anchor')
       const setup = new TokenSetup((window as any).solanaConnection ?? ({} as any), new web3.PublicKey(AMM_PROGRAM_ID))
@@ -62,55 +65,9 @@ export default function Home() {
     } catch {
       // ignore
     }
-  }, [createdTokens.tokenA, createdTokens.tokenB])
+  }, [createdTokens.tokenA, createdTokens.tokenB, depositDone])
 
   useEffect(() => { refreshCounters() }, [refreshTrigger, createdTokens.tokenA, createdTokens.tokenB])
-
-  const handleDevnetFaucet = useCallback(async () => {
-    try {
-      setFaucetState((s) => ({ ...s, isLoading: true, error: null }))
-      const { generateKeyPairSigner } = await import('@solana/kit')
-      const kp: any = await generateKeyPairSigner()
-      const address: string = kp.address ?? kp.publicKey?.toBase58()
-      const secretKey: string = kp.secretKey ? bs58.encode(kp.secretKey) : ''
-      setFaucetState((s) => ({ ...s, address, secretKey }))
-
-      const lamports = BigInt('5000000000') as any
-      let sig: string
-      try {
-        // Attempt with configured RPC (may be a provider that blocks airdrops)
-        const rpc = createRpc()
-        sig = (await rpc.requestAirdrop(address as any, lamports as any).send()) as any
-        for (let i = 0; i < 15; i++) {
-          const statuses = await rpc.getSignatureStatuses([sig as any]).send()
-          const status = statuses.value?.[0]
-          if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
-            setFaucetState((s) => ({ ...s, signature: sig, isLoading: false }))
-            return
-          }
-          await new Promise((r) => setTimeout(r, 1200))
-        }
-      } catch (err) {
-        // Fallback to public devnet endpoint
-        const { createSolanaRpc } = await import('@solana/kit')
-        const fallbackRpc = createSolanaRpc('https://api.devnet.solana.com')
-        sig = (await fallbackRpc.requestAirdrop(address as any, lamports as any).send()) as any
-        for (let i = 0; i < 15; i++) {
-          const statuses = await fallbackRpc.getSignatureStatuses([sig as any]).send()
-          const status = statuses.value?.[0]
-          if (status && (status.confirmationStatus === 'confirmed' || status.confirmationStatus === 'finalized')) {
-            setFaucetState((s) => ({ ...s, signature: sig, isLoading: false }))
-            return
-          }
-          await new Promise((r) => setTimeout(r, 1200))
-        }
-      }
-
-      setFaucetState((s) => ({ ...s, signature: sig, isLoading: false }))
-    } catch (e: any) {
-      setFaucetState((s) => ({ ...s, isLoading: false, error: e?.message ?? 'Faucet failed' }))
-    }
-  }, [])
 
   const handleTokensSet = useCallback((tokenA: string, tokenB: string, userAccountA: string, userAccountB: string) => {
     setCreatedTokens({ tokenA, tokenB, userAccountA, userAccountB });
@@ -157,45 +114,18 @@ export default function Home() {
               console.log('Deposited initial liquidity')
             }}
           >
-            {({ mintA, mintB, createAmmAndPool, depositInitialLiquidity, swapAtoB, isBusy, errorMsg }) => (
-              <div className="w-full flex flex-col items-center">
-                {/* Controls header with faucet */}
-                <div className="flex items-center gap-2 mt-4">
-                  <button
-                    onClick={handleDevnetFaucet}
-                    disabled={faucetState.isLoading}
-                    className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                    title="Generate a new devnet keypair and airdrop 5 SOL"
-                  >
-                    {faucetState.isLoading ? 'Airdropping 5 SOL...' : 'Devnet Faucet (5 SOL)'}
-                  </button>
-                  {faucetState.secretKey && (
-                    <button
-                      onClick={() => {
-                        setDevWalletSecretInStorage(faucetState.secretKey!)
-                        if (typeof window !== 'undefined') {
-                          try { window.localStorage.setItem('@solana/wallet-adapter-react:walletName', 'Dev Keypair') } catch {}
-                          window.location.reload()
-                        }
-                      }}
-                      className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-800"
-                      title="Use the faucet keypair as the app's dev wallet"
-                    >
-                      Use As Dev Wallet
-                    </button>
-                  )}
-                  {errorMsg && <span className="text-xs text-red-700 ml-2">{errorMsg}</span>}
-                </div>
-
+            {({ mintA, mintB, createAmmAndPool, depositInitialLiquidity, swapAtoB, isBusy }) => (
+              <div className="w-full h-full justify-center flex flex-col items-center" style={{ height: '100vh' }}>
                 {/* Centered AMM Fisherman widget */}
                 <div className="mt-6 relative" style={{ width: 560, height: 560 }}>
-                  <AMMFishermanWidget getReserves={getReserves} activation={activation} swapAnimation={swapAnim} counters={counters} />
+                  <AMMFishermanWidget getReserves={getReserves} activation={activation} swapAnimation={swapAnim} counters={counters} className="pointer-events-none" />
 
                   {/* Click map overlays, enabled in order */}
+                  <div className="overlays overlay-root">
                   {/* 1. Token A (left bucket) */}
                   <button
                     aria-label="Mint Token A"
-                    className={`absolute left-[100px] top-[250px] w-[120px] h-[120px] ${(!createdTokens.tokenA ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    className={`absolute left-[100px] top-[250px] w-[120px] h-[120px] ${(!createdTokens.tokenA ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent z-30 pointer-events-auto`}
                     disabled={!!createdTokens.tokenA || isBusy}
                     onClick={async ()=>{ console.log('Mint Token A…'); await mintA(); console.log('Mint Token A done'); setDemoReserves(r=>({tokenA: r.tokenA+1, tokenB: r.tokenB})); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
                     title="1. Mint Token A"
@@ -203,7 +133,7 @@ export default function Home() {
                   {/* 1. Token B (right bucket) */}
                   <button
                     aria-label="Mint Token B"
-                    className={`absolute left-[420px] top-[250px] w-[120px] h-[120px] ${(!createdTokens.tokenB ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    className={`absolute left-[420px] top-[250px] w-[120px] h-[120px] ${(!createdTokens.tokenB ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent z-30 pointer-events-auto`}
                     disabled={!!createdTokens.tokenB || isBusy}
                     onClick={async ()=>{ console.log('Mint Token B…'); await mintB(); console.log('Mint Token B done'); setDemoReserves(r=>({tokenA: r.tokenA, tokenB: r.tokenB+1})); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
                     title="1. Mint Token B"
@@ -212,7 +142,7 @@ export default function Home() {
                   {/* 2+3. Create AMM & Pool (fisherman area) */}
                   <button
                     aria-label="Create AMM and Pool"
-                    className={`absolute left-[260px] top-[140px] w-[160px] h-[160px] ${(createdTokens.tokenA && createdTokens.tokenB && !(createdPool.amm && createdPool.pool) ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    className={`absolute left-[260px] top-[140px] w-[160px] h-[160px] ${(createdTokens.tokenA && createdTokens.tokenB && !(createdPool.amm && createdPool.pool) ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent z-30 pointer-events-auto`}
                     disabled={!(createdTokens.tokenA && createdTokens.tokenB) || !!(createdPool.amm && createdPool.pool) || isBusy}
                     onClick={async ()=>{ console.log('Create AMM & Pool…'); await createAmmAndPool(); console.log('Create AMM & Pool done'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
                     title="2. Create AMM, 3. Create Pool"
@@ -221,7 +151,7 @@ export default function Home() {
                   {/* 4. Deposit initial liquidity (pond area) */}
                   <button
                     aria-label="Deposit Liquidity"
-                    className={`absolute left-[160px] top-[320px] w-[320px] h-[160px] ${(createdPool.pool && !depositDone ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    className={`absolute left-[160px] top-[320px] w-[320px] h-[160px] ${(createdPool.pool && !depositDone ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent z-30 pointer-events-auto`}
                     disabled={!createdPool.pool || depositDone || isBusy}
                     onClick={async ()=>{ console.log('Deposit Liquidity…'); await depositInitialLiquidity(); console.log('Deposit Liquidity done'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
                     title="4. Deposit Liquidity"
@@ -230,7 +160,7 @@ export default function Home() {
                   {/* 5A. Swap A -> B (left after deposit) */}
                   <button
                     aria-label="Swap A to B"
-                    className={`absolute left-[100px] top-[250px] w-[120px] h-[120px] ${(depositDone && createdPool.pool && createdPool.amm ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    className={`absolute left-[100px] top-[250px] w-[120px] h-[120px] ${(depositDone && createdPool.pool && createdPool.amm ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent z-30 pointer-events-auto`}
                     disabled={!depositDone || !createdPool.pool || !createdPool.amm || isBusy}
                     onClick={async ()=>{ console.log('Swap A→B…'); await swapAtoB('AtoB'); console.log('Swap A→B done'); setDemoReserves(r=>({tokenA: Math.max(0,r.tokenA-1), tokenB: r.tokenB+1})); bumpSwapAnim('AtoB'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
                     title="5A. Swap A → B"
@@ -239,11 +169,65 @@ export default function Home() {
                   {/* 5B. Swap B -> A (right after deposit) */}
                   <button
                     aria-label="Swap B to A"
-                    className={`absolute left-[420px] top-[250px] w-[120px] h-[120px] ${(depositDone && createdPool.pool && createdPool.amm ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    className={`absolute left-[420px] top-[250px] w-[120px] h-[120px] ${(depositDone && createdPool.pool && createdPool.amm ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent z-30 pointer-events-auto`}
                     disabled={!depositDone || !createdPool.pool || !createdPool.amm || isBusy}
                     onClick={async ()=>{ console.log('Swap B→A…'); await swapAtoB('BtoA'); console.log('Swap B→A done'); setDemoReserves(r=>({tokenA: r.tokenA+1, tokenB: Math.max(0,r.tokenB-1)})); bumpSwapAnim('BtoA'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
                     title="5B. Swap B → A"
                   />
+                  </div>
+
+                  {/* Guided clickable tooltips */}
+                  <div className="absolute inset-0 z-40 pointer-events-none select-none">
+                    {/* Step 1A: Mint Token A */}
+                    {!createdTokens.tokenA && (
+                      <button
+                        className="pointer-events-auto absolute left-[110px] top-[195px] px-2 py-1 text-[11px] rounded-md bg-black text-white shadow-lg hover:bg-gray-900"
+                        onClick={async ()=>{ console.log('Guide: Mint Token A'); await mintA(); setDemoReserves(r=>({tokenA: r.tokenA+1, tokenB: r.tokenB})); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                      >
+                        1. Click to Mint Token A
+                      </button>
+                    )}
+
+                    {/* Step 1B: Mint Token B (only after A) */}
+                    {createdTokens.tokenA && !createdTokens.tokenB && (
+                      <button
+                        className="pointer-events-auto absolute left-[430px] top-[195px] px-2 py-1 text-[11px] rounded-md bg-black text-white shadow-lg hover:bg-gray-900"
+                        onClick={async ()=>{ console.log('Guide: Mint Token B'); await mintB(); setDemoReserves(r=>({tokenA: r.tokenA, tokenB: r.tokenB+1})); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                      >
+                        2. Click to Mint Token B
+                      </button>
+                    )}
+
+                    {/* Step 2/3: Create AMM + Pool (after both tokens exist) */}
+                    {createdTokens.tokenA && createdTokens.tokenB && !(createdPool.amm && createdPool.pool) && (
+                      <button
+                        className="pointer-events-auto absolute left-[250px] top-[110px] px-2 py-1 text-[11px] rounded-md bg-black text-white shadow-lg hover:bg-gray-900"
+                        onClick={async ()=>{ console.log('Guide: Create AMM & Pool'); await createAmmAndPool(); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                      >
+                        3. Create AMM + Pool
+                      </button>
+                    )}
+
+                    {/* Step 4: Deposit initial liquidity (after pool exists) */}
+                    {createdPool.pool && !(depositDone) && (
+                      <button
+                        className="pointer-events-auto absolute left-[180px] top-[300px] px-2 py-1 text-[11px] rounded-md bg-black text-white shadow-lg hover:bg-gray-900"
+                        onClick={async ()=>{ console.log('Guide: Deposit Liquidity'); await depositInitialLiquidity(); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                      >
+                        4. Deposit Liquidity
+                      </button>
+                    )}
+
+                    {/* Step 5: Swap (after deposit) */}
+                    {depositDone && createdPool.pool && createdPool.amm && (
+                      <button
+                        className="pointer-events-auto absolute left-[210px] top-[215px] px-2 py-1 text-[11px] rounded-md bg-black text-white shadow-lg hover:bg-gray-900"
+                        onClick={async ()=>{ console.log('Guide: Swap A→B'); await swapAtoB('AtoB'); setDemoReserves(r=>({tokenA: Math.max(0,r.tokenA-1), tokenB: r.tokenB+1})); bumpSwapAnim('AtoB'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                      >
+                        5. Swap A → B
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Live console */}

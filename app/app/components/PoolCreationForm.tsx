@@ -9,7 +9,7 @@ import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import PoolDataDisplay from './PoolDataDisplay'
 import { createRpc } from '../config/rpc-config'
-import { fetchPool } from '../clients/amm/accounts/pool'
+import { Buffer } from 'buffer'
 import { web3 } from '@coral-xyz/anchor'
 
 interface PoolData {
@@ -50,18 +50,34 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       try {
         setIsLoading(true)
         const rpc = createRpc()
-        const poolAccount = await fetchPool(rpc as any, localCreatedPool.pool as any)
+        const accountInfo = await rpc.getAccountInfo(localCreatedPool.pool as any).send()
+        if (!accountInfo.value) return
+        const [encoded, encoding] = accountInfo.value.data as unknown as [string, 'base64' | 'base58']
+        const data = Buffer.from(
+          encoding === 'base64' ? encoded : Buffer.from(require('bs58').decode(encoded))
+        )
 
-        // Map account data into UI shape
+        // Decode Pool account: discriminator(8) + amm(32) + mintA(32) + mintB(32) + vaultA(32) + vaultB(32) + lpMint(32) + totalLiquidity(8) + poolAuthorityBump(1)
+        let off = 8
+        const readPk = () => { const pk = new web3.PublicKey(data.slice(off, off+32)); off += 32; return pk }
+        const ammPk = readPk()
+        const mintAPk = readPk()
+        const mintBPk = readPk()
+        const vaultAPk = readPk()
+        const vaultBPk = readPk()
+        const lpMintPk = readPk()
+        const totalLiquidity = Number(data.readBigUInt64LE(off)); off += 8
+        const poolAuthorityBump = data[off]
+
         const basePoolData: PoolData = {
-          amm: poolAccount.data.amm as string,
-          mintA: poolAccount.data.mintA as string,
-          mintB: poolAccount.data.mintB as string,
-          vaultA: poolAccount.data.vaultA as string,
-          vaultB: poolAccount.data.vaultB as string,
-          lpMint: poolAccount.data.lpMint as string,
-          totalLiquidity: Number(poolAccount.data.totalLiquidity),
-          poolAuthorityBump: poolAccount.data.poolAuthorityBump,
+          amm: ammPk.toBase58(),
+          mintA: mintAPk.toBase58(),
+          mintB: mintBPk.toBase58(),
+          vaultA: vaultAPk.toBase58(),
+          vaultB: vaultBPk.toBase58(),
+          lpMint: lpMintPk.toBase58(),
+          totalLiquidity,
+          poolAuthorityBump,
         }
 
         // Optionally fetch live balances of the pool vaults

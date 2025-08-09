@@ -56,7 +56,8 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       }
       if (a.signature) console.log('Create Token A tx:', `https://explorer.solana.com/tx/${a.signature}?cluster=devnet`)
       const mintA = a.mintAddress
-      const mintAR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintA as any, 10000000000000)
+      // Mint 1000 tokens (decimals = 6)
+      const mintAR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintA as any, 1_000 * 1_000_000)
       if (!mintAR.success) {
         console.error('Mint A failed', mintAR)
         setErrorMsg(mintAR.error || 'Mint A failed')
@@ -73,7 +74,8 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       }
       if (b.signature) console.log('Create Token B tx:', `https://explorer.solana.com/tx/${b.signature}?cluster=devnet`)
       const mintB = b.mintAddress
-      const mintBR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintB as any, 10000000000000)
+      // Mint 1000 tokens (decimals = 6)
+      const mintBR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintB as any, 1_000 * 1_000_000)
       if (!mintBR.success) {
         console.error('Mint B failed', mintBR)
         setErrorMsg(mintBR.error || 'Mint B failed')
@@ -104,10 +106,16 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       if (!a.success || !a.mintAddress) throw new Error(a.error || 'Token A failed')
       if (a.signature) console.log('Create Token A tx:', `https://explorer.solana.com/tx/${a.signature}?cluster=devnet`)
       const mintA = a.mintAddress
-      const mintAR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintA as any, 10000000000000)
+      // Early progress: expose Token A to parent immediately so guided flow can continue
+      try {
+        onTokensCreated(mintA, createdTokens.tokenB ?? null as any, createdTokens.userAccountA ?? null as any, createdTokens.userAccountB ?? null as any)
+      } catch {}
+      // Mint 1000 tokens (decimals = 6)
+      const mintAR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintA as any, 1_000 * 1_000_000)
       if (!mintAR.success) throw new Error(mintAR.error || 'Mint A failed')
       if (mintAR.signature) console.log('Mint A tx:', `https://explorer.solana.com/tx/${mintAR.signature}?cluster=devnet`)
       const ua = mintAR.userAccountAddress!
+      // Finalize with user account once mint to ATA succeeds
       onTokensCreated(mintA, createdTokens.tokenB ?? null as any, ua, createdTokens.userAccountB ?? null as any)
       setStage('minted')
       play('pluck')
@@ -129,10 +137,16 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       if (!b.success || !b.mintAddress) throw new Error(b.error || 'Token B failed')
       if (b.signature) console.log('Create Token B tx:', `https://explorer.solana.com/tx/${b.signature}?cluster=devnet`)
       const mintB = b.mintAddress
-      const mintBR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintB as any, 10000000000000)
+      // Early progress: expose Token B to parent immediately so guided flow can continue
+      try {
+        onTokensCreated(createdTokens.tokenA ?? null as any, mintB, createdTokens.userAccountA ?? null as any, createdTokens.userAccountB ?? null as any)
+      } catch {}
+      // Mint 1000 tokens (decimals = 6)
+      const mintBR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintB as any, 1_000 * 1_000_000)
       if (!mintBR.success) throw new Error(mintBR.error || 'Mint B failed')
       if (mintBR.signature) console.log('Mint B tx:', `https://explorer.solana.com/tx/${mintBR.signature}?cluster=devnet`)
       const ub = mintBR.userAccountAddress!
+      // Finalize with user account once mint to ATA succeeds
       onTokensCreated(createdTokens.tokenA ?? null as any, mintB, createdTokens.userAccountA ?? null as any, ub)
       setStage('minted')
       play('pluck')
@@ -193,7 +207,8 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
     play('splash')
     try {
       const client = new AnchorClient(connection, { publicKey, signTransaction } as any)
-      const liquidityAmount = Math.floor(100000 * 1e6)
+      // Deposit 750 tokens of each (decimals = 6)
+      const liquidityAmount = 750 * 1_000_000
       // Use cached lpMint captured during pool creation
       const lpMintPk = new web3.PublicKey(lpMintCached as string)
       const depRes = await client.depositLiquidity(
@@ -210,6 +225,7 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
         setErrorMsg('deposit failed')
         return
       }
+      console.log('Deposit Liquidity tx (client):', `https://explorer.solana.com/tx/${depRes.signature}?cluster=devnet`)
       if (depRes.signature) console.log('Deposit Liquidity tx:', `https://explorer.solana.com/tx/${depRes.signature}?cluster=devnet`)
       onLiquidityAdded?.()
       // small delay then trigger counter refresh via parent
@@ -234,7 +250,8 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       const mintAInfo = await connection.getParsedAccountInfo(new web3.PublicKey(inMint as string))
       const decimals = (mintAInfo?.value as any)?.data?.parsed?.info?.decimals ?? 6
       const scale = Math.pow(10, decimals)
-      const inputAmount = Math.floor(500 * scale)
+      // Swap 5 tokens
+      const inputAmount = Math.floor(5 * scale)
       const minOutputAmount = Math.floor(inputAmount * 0.95)
       const res = await client.swapTokens(
         new web3.PublicKey(createdPool.amm as string),
