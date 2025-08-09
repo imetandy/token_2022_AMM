@@ -1,7 +1,7 @@
-import { PublicKey, derivePdaAddressSync } from './kit';
+import { web3 } from '@coral-xyz/anchor';
 
 // Program ID
-export const COUNTER_HOOK_PROGRAM_ID = new PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
+export const COUNTER_HOOK_PROGRAM_ID = new web3.PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
 
 // Instruction discriminators (matching our native program)
 export const INITIALIZE_MINT_TRADE_COUNTER_DISCRIMINATOR = [1, 2, 3, 4, 5, 6, 7, 8];
@@ -12,10 +12,10 @@ export const EXECUTE_TRANSFER_HOOK_DISCRIMINATOR = [120, 157, 67, 141, 88, 144, 
  * Create instruction to initialize a mint trade counter
  */
 export function createInitializeMintTradeCounterInstruction(
-    mint: PublicKey,
-    mintTradeCounter: PublicKey,
-    payer: PublicKey,
-    systemProgram: PublicKey = new PublicKey('11111111111111111111111111111111')
+    mint: web3.PublicKey,
+    mintTradeCounter: web3.PublicKey,
+    payer: web3.PublicKey,
+    systemProgram: web3.PublicKey = new web3.PublicKey('11111111111111111111111111111111')
 ): any {
     const keys = [
         { pubkey: mintTradeCounter, isSigner: false, isWritable: true },
@@ -37,10 +37,10 @@ export function createInitializeMintTradeCounterInstruction(
  * Create instruction to update a mint trade counter
  */
 export function createUpdateMintTradeCounterInstruction(
-    mintTradeCounter: PublicKey,
+    mintTradeCounter: web3.PublicKey,
     amount: number | bigint,
-    sourceOwner: PublicKey,
-    destinationOwner: PublicKey
+    sourceOwner: web3.PublicKey,
+    destinationOwner: web3.PublicKey
 ): any {
     const keys = [
         { pubkey: mintTradeCounter, isSigner: false, isWritable: true },
@@ -70,12 +70,12 @@ export function createUpdateMintTradeCounterInstruction(
  * Create instruction to execute transfer hook (custom call)
  */
 export function createExecuteTransferHookInstruction(
-    sourceToken: PublicKey,
-    mint: PublicKey,
-    destinationToken: PublicKey,
-    owner: PublicKey,
-    extraAccountMetaList: PublicKey,
-    mintTradeCounter: PublicKey,
+    sourceToken: web3.PublicKey,
+    mint: web3.PublicKey,
+    destinationToken: web3.PublicKey,
+    owner: web3.PublicKey,
+    extraAccountMetaList: web3.PublicKey,
+    mintTradeCounter: web3.PublicKey,
     amount: number | bigint
 ): any {
     const keys = [
@@ -105,19 +105,21 @@ export function createExecuteTransferHookInstruction(
 /**
  * Helper to get the mint trade counter PDA
  */
-export function getMintTradeCounterPDA(mint: PublicKey): [PublicKey, number] {
-    return [
-        derivePdaAddressSync(['mint-trade-counter', mint], COUNTER_HOOK_PROGRAM_ID.toBase58()),
-        0,
-    ];
+export function getMintTradeCounterPDA(mint: web3.PublicKey): [web3.PublicKey, number] {
+    const [pda, bump] = web3.PublicKey.findProgramAddressSync([
+        Buffer.from('mint-trade-counter'),
+        mint.toBuffer(),
+    ], COUNTER_HOOK_PROGRAM_ID);
+    return [pda, bump];
 }
 
 /**
  * Helper to get the extra account meta list PDA
  */
-export function getExtraAccountMetaListPDA(mint: PublicKey): [PublicKey, number] {
-    return [
-        derivePdaAddressSync(['extra-account-metas', mint], COUNTER_HOOK_PROGRAM_ID.toBase58()),
-        0,
-    ];
+export function getExtraAccountMetaListPDA(mint: web3.PublicKey): [web3.PublicKey, number] {
+    const [pda, bump] = web3.PublicKey.findProgramAddressSync([
+        Buffer.from('extra-account-metas'),
+        mint.toBuffer(),
+    ], COUNTER_HOOK_PROGRAM_ID);
+    return [pda, bump];
 }

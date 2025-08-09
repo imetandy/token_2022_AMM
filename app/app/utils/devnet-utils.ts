@@ -1,4 +1,4 @@
-import { PublicKey } from './kit';
+import type { Address } from '@solana/addresses';
 type Connection = any;
 type Keypair = any;
 const LAMPORTS_PER_SOL = 1_000_000_000;
@@ -34,10 +34,10 @@ export async function fundKeypairWithSOL(keypair: Keypair, amount: number = 1): 
   }
 }
 
-export async function checkSOLBalance(publicKey: PublicKey): Promise<number> {
+export async function checkSOLBalance(publicKey: Address): Promise<number> {
   try {
     const rpc = createRpc();
-    const { value: balance } = await rpc.getBalance(publicKey as any).send();
+    const { value: balance } = await rpc.getBalance(publicKey as Address).send();
     return Number(balance) / LAMPORTS_PER_SOL;
   } catch (error) {
     console.error('Error checking balance:', error);

@@ -75,44 +75,16 @@ export type TokenSetup = {
               {
                 "kind": "account",
                 "path": "mint"
+              },
+              {
+                "kind": "account",
+                "path": "counterHookProgram"
               }
             ]
           }
         },
         {
-          "name": "mintTradeCounter",
-          "writable": true,
-          "pda": {
-            "seeds": [
-              {
-                "kind": "const",
-                "value": [
-                  109,
-                  105,
-                  110,
-                  116,
-                  45,
-                  116,
-                  114,
-                  97,
-                  100,
-                  101,
-                  45,
-                  99,
-                  111,
-                  117,
-                  110,
-                  116,
-                  101,
-                  114
-                ]
-              },
-              {
-                "kind": "account",
-                "path": "mint"
-              }
-            ]
-          }
+          "name": "mintTradeCounter"
         },
         {
           "name": "systemProgram",
@@ -192,6 +164,43 @@ export type TokenSetup = {
               {
                 "kind": "account",
                 "path": "mint"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  236,
+                  202,
+                  242,
+                  135,
+                  15,
+                  11,
+                  123,
+                  251,
+                  138,
+                  95,
+                  27,
+                  41,
+                  74,
+                  114,
+                  101,
+                  84,
+                  186,
+                  33,
+                  240,
+                  213,
+                  235,
+                  200,
+                  174,
+                  103,
+                  178,
+                  37,
+                  192,
+                  231,
+                  148,
+                  119,
+                  111,
+                  207
+                ]
               }
             ]
           }

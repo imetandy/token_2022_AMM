@@ -1,4 +1,4 @@
-import { PublicKey } from './kit';
+import { web3 } from '@coral-xyz/anchor';
 type Connection = any;
 type Transaction = any;
 type Keypair = any;
@@ -6,7 +6,7 @@ import { Program, AnchorProvider } from '@coral-xyz/anchor';
 import bs58 from 'bs58';
 import { createRpc, getBestRpcEndpoint } from '../config/rpc-config';
 import { createTransactionMessage, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, signTransactionMessageWithSigners, sendAndConfirmTransactionFactory } from '@solana/kit';
-import { toAddress } from './kit';
+import type { Address } from '@solana/addresses';
 
 export interface TokenSetupResult {
   mintAddress: string;
@@ -16,14 +16,14 @@ export interface TokenSetupResult {
 
 export class TokenSetup {
   private connection: Connection;
-  private ammProgramId: PublicKey;
-  private counterHookProgramId: PublicKey;
+  private ammProgramId: web3.PublicKey;
+  private counterHookProgramId: web3.PublicKey;
   private rpc = createRpc();
 
-  constructor(connection: Connection, ammProgramId: PublicKey) {
+  constructor(connection: Connection, ammProgramId: web3.PublicKey) {
     this.connection = connection;
     this.ammProgramId = ammProgramId;
-    this.counterHookProgramId = new PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
+    this.counterHookProgramId = new web3.PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
   }
 
   /**
@@ -31,14 +31,14 @@ export class TokenSetup {
    */
   async initializeTransferHookAccounts(
     mintAddress: string,
-    walletPublicKey: PublicKey
+    walletPublicKey: web3.PublicKey
   ): Promise<TokenSetupResult> {
     console.log('Initializing transfer hook accounts for mint:', mintAddress);
 
-    const mintPubkey = new PublicKey(mintAddress);
+    const mintPubkey = new web3.PublicKey(mintAddress);
 
           // Derive the trade counter PDA
-      const [tradeCounterPda] = PublicKey.findProgramAddressSync(
+      const [tradeCounterPda] = web3.PublicKey.findProgramAddressSync(
         [Buffer.from('mint-trade-counter'), mintPubkey.toBuffer()],
         this.counterHookProgramId
       );
@@ -52,7 +52,7 @@ export class TokenSetup {
         { pubkey: walletPublicKey, isSigner: true, isWritable: true },
         { pubkey: tradeCounterPda, isSigner: false, isWritable: true },
         { pubkey: mintPubkey, isSigner: false, isWritable: false },
-        { pubkey: new PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false }
+        { pubkey: new web3.PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false }
       ],
       data: Buffer.from([
         // Instruction discriminator for initialize_mint_trade_counter
@@ -83,15 +83,20 @@ export class TokenSetup {
    */
   async getTradeCounter(mintAddress: string): Promise<{
     mint: string;
+    incomingTransfers: number;
+    outgoingTransfers: number;
+    totalIncomingVolume: number;
+    totalOutgoingVolume: number;
     totalTransfers: number;
     totalVolume: number;
     lastUpdated: number;
+    hookOwner: string;
   } | null> {
     try {
-      const mintPubkey = new PublicKey(mintAddress);
+      const mintPubkey = new web3.PublicKey(mintAddress);
       
           // Derive the trade counter PDA
-    const [tradeCounterPda] = PublicKey.findProgramAddressSync(
+    const [tradeCounterPda] = web3.PublicKey.findProgramAddressSync(
       [Buffer.from('mint-trade-counter'), mintPubkey.toBuffer()],
       this.counterHookProgramId
     );
@@ -99,7 +104,7 @@ export class TokenSetup {
       console.log('Trade counter PDA:', tradeCounterPda.toString());
 
       // Get the account data
-      const accountInfo = await this.rpc.getAccountInfo(toAddress(tradeCounterPda)).send();
+      const accountInfo = await this.rpc.getAccountInfo(tradeCounterPda.toBase58() as unknown as Address).send();
       
       const account = accountInfo.value;
       if (!account) {
@@ -107,22 +112,37 @@ export class TokenSetup {
         return null;
       }
 
-      // Parse the account data
+      // Decode borsh-serialized MintTradeCounter (no discriminator)
       const encData = account.data as unknown as [string, 'base64' | 'base58'];
       const [encoded, encoding] = encData;
       const data = encoding === 'base64' ? Buffer.from(encoded, 'base64') : Buffer.from(bs58.decode(encoded));
-      
-      // Skip discriminator (8 bytes)
-      const mint = new PublicKey(data.slice(8, 40));
-      const totalTransfers = data.readBigUInt64LE(40);
-      const totalVolume = data.readBigUInt64LE(48);
-      const lastUpdated = data.readBigInt64LE(56);
+
+      // Layout:
+      // 0..32   mint Pubkey
+      // 32..40  incoming_transfers u64
+      // 40..48  outgoing_transfers u64
+      // 48..56  total_incoming_volume u64
+      // 56..64  total_outgoing_volume u64
+      // 64..72  last_updated i64
+      // 72..104 hook_owner Pubkey
+      const mint = new web3.PublicKey(data.slice(0, 32));
+      const incomingTransfers = Number(data.readBigUInt64LE(32));
+      const outgoingTransfers = Number(data.readBigUInt64LE(40));
+      const totalIncomingVolume = Number(data.readBigUInt64LE(48));
+      const totalOutgoingVolume = Number(data.readBigUInt64LE(56));
+      const lastUpdated = Number(data.readBigInt64LE(64));
+      const hookOwner = new web3.PublicKey(data.slice(72, 104)).toString();
 
       return {
         mint: mint.toString(),
-        totalTransfers: Number(totalTransfers),
-        totalVolume: Number(totalVolume),
-        lastUpdated: Number(lastUpdated)
+        incomingTransfers,
+        outgoingTransfers,
+        totalIncomingVolume,
+        totalOutgoingVolume,
+        totalTransfers: incomingTransfers + outgoingTransfers,
+        totalVolume: totalIncomingVolume + totalOutgoingVolume,
+        lastUpdated,
+        hookOwner,
       };
     } catch (error) {
       console.error('Error getting trade counter:', error);
@@ -134,7 +154,7 @@ export class TokenSetup {
    * Create a complete token setup workflow
    */
   async createTokenWithHook(
-    walletPublicKey: PublicKey,
+    walletPublicKey: web3.PublicKey,
     tokenName: string,
     tokenSymbol: string
   ): Promise<TokenSetupResult> {

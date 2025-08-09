@@ -2,7 +2,6 @@
 
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey, derivePdaAddressSync, deriveAtaAddressSync } from '../utils/kit'
 import { web3 as anchorWeb3 } from '@coral-xyz/anchor'
 import { TransactionResult } from '../utils/transaction-utils'
 import { createRpc } from '../config/rpc-config'
@@ -88,65 +87,67 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
       
       // Extract mint addresses from pool data
       // Pool structure: discriminator(8) + amm(32) + mint_a(32) + mint_b(32) + vault_a(32) + vault_b(32) + lp_mint(32) + total_liquidity(8)
-      const poolMintA = new PublicKey(poolData.slice(8 + 32, 8 + 32 + 32));
-      const poolMintB = new PublicKey(poolData.slice(8 + 32 + 32, 8 + 32 + 32 + 32));
-      const lpMintAddress = new PublicKey(poolData.slice(8 + 32 + 32 + 32 + 32 + 32, 8 + 32 + 32 + 32 + 32 + 32 + 32));
+      const poolMintA = new anchorWeb3.PublicKey(poolData.slice(8 + 32, 8 + 32 + 32));
+      const poolMintB = new anchorWeb3.PublicKey(poolData.slice(8 + 32 + 32, 8 + 32 + 32 + 32));
+      const lpMintAddress = new anchorWeb3.PublicKey(poolData.slice(8 + 32 + 32 + 32 + 32 + 32, 8 + 32 + 32 + 32 + 32 + 32 + 32));
 
       // Derive AMM ID using actual mint addresses from pool
-      const ammId = derivePdaAddressSync([
-        'amm',
-        poolMintA,
-        poolMintB,
-      ], AMM_PROGRAM_ID)
+      const [ammId] = anchorWeb3.PublicKey.findProgramAddressSync([
+        Buffer.from('amm'),
+        poolMintA.toBuffer(),
+        poolMintB.toBuffer(),
+      ], new anchorWeb3.PublicKey(AMM_PROGRAM_ID))
 
       // Derive pool authority PDA
-      const poolAuthorityPk = derivePdaAddressSync(
-        [new PublicKey(poolAddress), poolMintA, poolMintB, 'pool_authority'],
-        AMM_PROGRAM_ID
-      )
+      const [poolAuthorityPk] = anchorWeb3.PublicKey.findProgramAddressSync([
+        new anchorWeb3.PublicKey(poolAddress as string).toBuffer(),
+        poolMintA.toBuffer(),
+        poolMintB.toBuffer(),
+        Buffer.from('pool_authority')
+      ], new anchorWeb3.PublicKey(AMM_PROGRAM_ID))
 
       // Derive correct ATAs using Associated Token Program + Token-2022 program
-      const poolAccountA = deriveAtaAddressSync({
-        owner: poolAuthorityPk,
-        mint: poolMintA,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM_ID,
-      }).toBase58()
+      const [poolAccountA] = anchorWeb3.PublicKey.findProgramAddressSync([
+        poolAuthorityPk.toBuffer(),
+        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
+        poolMintA.toBuffer(),
+      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
+      const poolAccountAAddr = poolAccountA.toBase58()
 
-      const poolAccountB = deriveAtaAddressSync({
-        owner: poolAuthorityPk,
-        mint: poolMintB,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM_ID,
-      }).toBase58()
+      const [poolAccountB] = anchorWeb3.PublicKey.findProgramAddressSync([
+        poolAuthorityPk.toBuffer(),
+        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
+        poolMintB.toBuffer(),
+      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
+      const poolAccountBAddr = poolAccountB.toBase58()
 
-      const poolLpAccount = deriveAtaAddressSync({
-        owner: poolAuthorityPk,
-        mint: lpMintAddress,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM_ID,
-      }).toBase58()
+      const [poolLpAccount] = anchorWeb3.PublicKey.findProgramAddressSync([
+        poolAuthorityPk.toBuffer(),
+        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
+        lpMintAddress.toBuffer(),
+      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
+      const poolLpAccountAddr = poolLpAccount.toBase58()
 
-      const userAccountA = deriveAtaAddressSync({
-        owner: payerKeypair.publicKey,
-        mint: poolMintA,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM_ID,
-      }).toBase58()
+      const [userAccountA] = anchorWeb3.PublicKey.findProgramAddressSync([
+        payerKeypair.publicKey.toBuffer(),
+        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
+        poolMintA.toBuffer(),
+      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
+      const userAccountAAddr = userAccountA.toBase58()
 
-      const userAccountB = deriveAtaAddressSync({
-        owner: payerKeypair.publicKey,
-        mint: poolMintB,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM_ID,
-      }).toBase58()
+      const [userAccountB] = anchorWeb3.PublicKey.findProgramAddressSync([
+        payerKeypair.publicKey.toBuffer(),
+        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
+        poolMintB.toBuffer(),
+      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
+      const userAccountBAddr = userAccountB.toBase58()
 
-      const userLpAccount = deriveAtaAddressSync({
-        owner: payerKeypair.publicKey,
-        mint: lpMintAddress,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID,
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM_ID,
-      }).toBase58()
+      const [userLpAccount] = anchorWeb3.PublicKey.findProgramAddressSync([
+        payerKeypair.publicKey.toBuffer(),
+        new anchorWeb3.PublicKey(TOKEN_2022_PROGRAM_ID).toBuffer(),
+        lpMintAddress.toBuffer(),
+      ], new anchorWeb3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID))
+      const userLpAccountAddr = userLpAccount.toBase58()
 
       console.log('=== LIQUIDITY FORM DEBUG ===');
       console.log('Pool mint A (stored):', poolMintA.toString());
@@ -167,21 +168,21 @@ export default function LiquidityForm({ tokenA, tokenB, poolAddress, onLiquidity
         mintA: poolMintA.toBase58(),
         mintB: poolMintB.toBase58(),
         // Explicitly pass ATAs to satisfy on-chain associated constraints
-        poolAccountA,
-        poolAccountB,
-        userAccountA,
-        userAccountB,
-        userLpAccount,
-        poolLpAccount,
+        poolAccountA: poolAccountAAddr,
+        poolAccountB: poolAccountBAddr,
+        userAccountA: userAccountAAddr,
+        userAccountB: userAccountBAddr,
+        userLpAccount: userAccountAAddr,
+        poolLpAccount: poolLpAccountAddr,
         lpMint: lpMintAddress.toBase58(),
         user: payerKeypair as any,
         // Token programs
         tokenProgram: TOKEN_2022_PROGRAM_ID,
         associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
-        extraAccountMetaListA: derivePdaAddressSync(['extra-account-metas', poolMintA], COUNTER_HOOK_PROGRAM_ID).toBase58(),
-        mintTradeCounterA: derivePdaAddressSync(['mint-trade-counter', poolMintA], COUNTER_HOOK_PROGRAM_ID).toBase58(),
-        extraAccountMetaListB: derivePdaAddressSync(['extra-account-metas', poolMintB], COUNTER_HOOK_PROGRAM_ID).toBase58(),
-        mintTradeCounterB: derivePdaAddressSync(['mint-trade-counter', poolMintB], COUNTER_HOOK_PROGRAM_ID).toBase58(),
+        extraAccountMetaListA: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('extra-account-metas'), poolMintA.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
+        mintTradeCounterA: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('mint-trade-counter'), poolMintA.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
+        extraAccountMetaListB: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('extra-account-metas'), poolMintB.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
+        mintTradeCounterB: anchorWeb3.PublicKey.findProgramAddressSync([Buffer.from('mint-trade-counter'), poolMintB.toBuffer()], new anchorWeb3.PublicKey(COUNTER_HOOK_PROGRAM_ID))[0].toBase58(),
         transferHookProgramA: COUNTER_HOOK_PROGRAM_ID,
         transferHookProgramB: COUNTER_HOOK_PROGRAM_ID,
         amountA: amountA,

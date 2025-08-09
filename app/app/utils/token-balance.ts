@@ -1,9 +1,9 @@
-import { PublicKey } from './kit';
+import { web3 } from '@coral-xyz/anchor';
 type Connection = any;
 import { createRpc } from '../config/rpc-config';
-import { toAddress } from './kit';
+import type { Address } from '@solana/addresses';
 
-const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+const TOKEN_2022_PROGRAM_ID = new web3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 
 export class TokenMinting {
   private connection: Connection;
@@ -16,10 +16,10 @@ export class TokenMinting {
   /**
    * Get the associated token account address for a mint and owner
    */
-  private async getAssociatedTokenAddress(mint: PublicKey, owner: PublicKey): Promise<PublicKey> {
-    const [associatedTokenAddress] = PublicKey.findProgramAddressSync(
+  private async getAssociatedTokenAddress(mint: web3.PublicKey, owner: web3.PublicKey): Promise<web3.PublicKey> {
+    const [associatedTokenAddress] = web3.PublicKey.findProgramAddressSync(
       [owner.toBuffer(), TOKEN_2022_PROGRAM_ID.toBuffer(), mint.toBuffer()],
-      new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
+      new web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
     );
     return associatedTokenAddress;
   }
@@ -27,13 +27,13 @@ export class TokenMinting {
   /**
    * Check token balance for a user
    */
-  async getTokenBalance(mintAddress: string, userWallet: PublicKey): Promise<number> {
-    const mintPubkey = new PublicKey(mintAddress);
+  async getTokenBalance(mintAddress: string, userWallet: web3.PublicKey): Promise<number> {
+    const mintPubkey = new web3.PublicKey(mintAddress);
     const userTokenAccount = await this.getAssociatedTokenAddress(mintPubkey, userWallet);
     
     try {
       // Fast-read via Kit RPC; fallback to web3.js if needed
-      const accountInfo = await this.rpc.getAccountInfo(toAddress(userTokenAccount)).send();
+      const accountInfo = await this.rpc.getAccountInfo(userTokenAccount.toBase58() as unknown as Address).send();
       if (!accountInfo.value) {
         console.log(`Token account ${userTokenAccount.toString()} does not exist for mint ${mintAddress}`);
         return 0;

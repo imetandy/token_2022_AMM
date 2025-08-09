@@ -1,4 +1,3 @@
-import { PublicKey } from './kit';
 type Connection = any;
 type TransactionSignature = string;
 type TransactionResponse = any;

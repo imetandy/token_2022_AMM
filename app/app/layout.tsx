@@ -24,9 +24,7 @@ export default function RootLayout({
     <html lang="en">
       <body className={inter.className}>
         <WalletContextProvider>
-          <div className="min-h-screen bg-gray-50">
-            {children}
-          </div>
+          {children}
         </WalletContextProvider>
       </body>
     </html>

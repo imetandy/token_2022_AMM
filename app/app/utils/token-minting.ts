@@ -1,11 +1,11 @@
-import { PublicKey } from './kit';
+import { web3 } from '@coral-xyz/anchor';
 type Connection = any;
 type Transaction = any;
 import { createRpc, getBestRpcEndpoint } from '../config/rpc-config';
 import { createTransactionMessage, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, appendTransactionMessageInstructions, signTransactionMessageWithSigners, sendAndConfirmTransactionFactory } from '@solana/kit';
-import { toAddress } from './kit';
+import type { Address } from '@solana/addresses';
 
-const TOKEN_2022_PROGRAM_ID = new PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
+const TOKEN_2022_PROGRAM_ID = new web3.PublicKey('TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb');
 
 
 
@@ -22,14 +22,14 @@ export class TokenMinting {
   /**
    * Get the associated token account address for a mint and owner
    */
-  private async getAssociatedTokenAddress(mint: PublicKey, owner: PublicKey): Promise<PublicKey> {
-    const [associatedTokenAddress] = await PublicKey.findProgramAddress(
+  private async getAssociatedTokenAddress(mint: web3.PublicKey, owner: web3.PublicKey): Promise<web3.PublicKey> {
+    const [associatedTokenAddress] = await web3.PublicKey.findProgramAddress(
       [
         owner.toBuffer(),
         TOKEN_2022_PROGRAM_ID.toBuffer(),
         mint.toBuffer(),
       ],
-      new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
+      new web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL')
     );
     return associatedTokenAddress;
   }
@@ -37,8 +37,8 @@ export class TokenMinting {
   /**
    * Check token balance for a user
    */
-  async getTokenBalance(mintAddress: string, userWallet: PublicKey): Promise<number> {
-    const mintPubkey = new PublicKey(mintAddress);
+  async getTokenBalance(mintAddress: string, userWallet: web3.PublicKey): Promise<number> {
+    const mintPubkey = new web3.PublicKey(mintAddress);
     const userTokenAccount = await this.getAssociatedTokenAddress(mintPubkey, userWallet);
     
     try {
@@ -56,14 +56,14 @@ export class TokenMinting {
    */
   async createAssociatedTokenAccount(
     mintAddress: string,
-    userWallet: PublicKey,
+    userWallet: web3.PublicKey,
     signTransaction: any
   ): Promise<string> {
-    const mintPubkey = new PublicKey(mintAddress);
+    const mintPubkey = new web3.PublicKey(mintAddress);
     const userTokenAccount = await this.getAssociatedTokenAddress(mintPubkey, userWallet);
     
     // Check if account already exists
-    const accountInfo = await this.rpc.getAccountInfo(toAddress(userTokenAccount)).send();
+    const accountInfo = await this.rpc.getAccountInfo(userTokenAccount.toBase58() as unknown as Address).send();
     if (accountInfo.value) {
       console.log(`Token account ${userTokenAccount.toString()} already exists`);
       return userTokenAccount.toString();
@@ -71,15 +71,15 @@ export class TokenMinting {
 
     // Create the associated token account instruction
     const createAccountInstruction = {
-      programId: new PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
+      programId: new web3.PublicKey('ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL'),
       keys: [
         { pubkey: userWallet, isSigner: true, isWritable: true },
         { pubkey: userTokenAccount, isSigner: false, isWritable: true },
         { pubkey: userWallet, isSigner: true, isWritable: false },
         { pubkey: mintPubkey, isSigner: false, isWritable: false },
-        { pubkey: new PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false },
+        { pubkey: new web3.PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false },
         { pubkey: TOKEN_2022_PROGRAM_ID, isSigner: false, isWritable: false },
-        { pubkey: new PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
+        { pubkey: new web3.PublicKey('SysvarRent111111111111111111111111111111111'), isSigner: false, isWritable: false }
       ],
       data: Buffer.from([])
     };

@@ -2,8 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey } from '../utils/kit'
-type Keypair = any;
 import { AMM_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID } from '../config/program'
 import { AnchorClient } from '../utils/anchor-client'
 // WalletClientNew removed; using generated builders + Kit pipeline directly
@@ -12,6 +10,7 @@ import TransactionResultComponent from './TransactionResult'
 import PoolDataDisplay from './PoolDataDisplay'
 import { createRpc } from '../config/rpc-config'
 import { fetchPool } from '../clients/amm/accounts/pool'
+import { web3 } from '@coral-xyz/anchor'
 
 interface PoolData {
   amm: string
@@ -68,8 +67,8 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
         // Optionally fetch live balances of the pool vaults
         try {
           const [balA, balB] = await Promise.all([
-            connection.getTokenAccountBalance(new PublicKey(basePoolData.vaultA)),
-            connection.getTokenAccountBalance(new PublicKey(basePoolData.vaultB)),
+            connection.getTokenAccountBalance(new web3.PublicKey(basePoolData.vaultA)),
+            connection.getTokenAccountBalance(new web3.PublicKey(basePoolData.vaultB)),
           ])
           setPoolData({
             ...basePoolData,
@@ -114,26 +113,26 @@ export default function PoolCreationForm({ tokenA, tokenB, onPoolCreated, create
       const solFee = 50_000_000
 
       console.log('Creating AMM with mints:', tokenA, tokenB)
-      console.log('Token A address:', new PublicKey(tokenA).toString())
-      console.log('Token B address:', new PublicKey(tokenB).toString())
-      const ammRes = await client.createAmm(new PublicKey(tokenA), new PublicKey(tokenB), solFee, solFeeCollector as any, signTransaction)
+      console.log('Token A address:', new web3.PublicKey(tokenA as string).toString())
+      console.log('Token B address:', new web3.PublicKey(tokenB as string).toString())
+      const ammRes = await client.createAmm(new web3.PublicKey(tokenA as string), new web3.PublicKey(tokenB as string), solFee, solFeeCollector as any, signTransaction)
       if (!ammRes.success) throw new Error('createAmm failed')
 
-      const poolRes = await client.createPool(new PublicKey(tokenA), new PublicKey(tokenB), signTransaction)
+      const poolRes = await client.createPool(new web3.PublicKey(tokenA as string), new web3.PublicKey(tokenB as string), signTransaction)
       if (!poolRes.success) throw new Error('createPool failed')
 
-      const cptaRes = await client.createPoolTokenAccounts(new PublicKey(tokenA), new PublicKey(tokenB), poolRes.lpMint as any, poolRes.pool as any, signTransaction)
+      const cptaRes = await client.createPoolTokenAccounts(new web3.PublicKey(tokenA as string), new web3.PublicKey(tokenB as string), poolRes.lpMint as any, poolRes.pool as any, signTransaction)
       if (!cptaRes.success) throw new Error('createPoolTokenAccounts failed')
 
       const liquidityAmount = Math.floor(parseFloat(initialLiquidity) * 1e6)
       const depRes = await client.depositLiquidity(
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
+        new web3.PublicKey(tokenA as string),
+        new web3.PublicKey(tokenB as string),
         poolRes.pool as any,
         poolRes.lpMint as any,
         liquidityAmount,
         liquidityAmount,
-        new PublicKey(COUNTER_HOOK_PROGRAM_ID),
+        new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID),
         signTransaction
       )
 

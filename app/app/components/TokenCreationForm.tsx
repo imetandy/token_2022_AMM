@@ -2,12 +2,11 @@
 
 import React, { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey } from '../utils/kit'
-type Keypair = any;
 import { TokenSetupClient } from '../utils/token-setup-client'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import { TokenMinting } from '../utils/token-minting'
+import { web3 } from '@coral-xyz/anchor'
 
 interface TokenCreationFormProps {
   onTokensSet: (tokenA: string, tokenB: string, userAccountA: string, userAccountB: string) => void
@@ -65,7 +64,7 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
 
       // Create Token A with hook
       console.log('Creating Token A:', tokenAName, tokenASymbol)
-      const resultA = await walletClient.createTokenWithHook(publicKey, sendTransaction, tokenAName, tokenASymbol, `https://arweave.net/metadata-token-a-${Date.now()}`)
+      const resultA = await walletClient.createTokenWithHook(publicKey.toBase58() as any, sendTransaction, tokenAName, tokenASymbol, `https://arweave.net/metadata-token-a-${Date.now()}`)
 
       if (resultA.success && resultA.mintAddress) {
         tokenAAddress = resultA.mintAddress
@@ -73,7 +72,7 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
         
         // Mint initial tokens to the wallet (1,000,000 tokens with 6 decimals)
         console.log('Minting 1,000,000 Token A to wallet...')
-        const mintResultA = await walletClient.mintTokens(publicKey as any, sendTransaction, new PublicKey(tokenAAddress), 10000000000000)
+        const mintResultA = await walletClient.mintTokens(publicKey.toBase58() as any, sendTransaction, tokenAAddress as any, 10000000000000)
         
         if (!mintResultA.success) {
           console.error('Failed to mint Token A:', mintResultA.error)
@@ -94,7 +93,7 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
 
       // Create Token B with hook
       console.log('Creating Token B:', tokenBName, tokenBSymbol)
-      const resultB = await walletClient.createTokenWithHook(publicKey, sendTransaction, tokenBName, tokenBSymbol, `https://arweave.net/metadata-token-b-${Date.now()}`)
+      const resultB = await walletClient.createTokenWithHook(publicKey.toBase58() as any, sendTransaction, tokenBName, tokenBSymbol, `https://arweave.net/metadata-token-b-${Date.now()}`)
 
       if (resultB.success && resultB.mintAddress) {
         tokenBAddress = resultB.mintAddress
@@ -102,7 +101,7 @@ export default function TokenCreationForm({ onTokensSet, createdTokens }: TokenC
         
         // Mint initial tokens to the wallet (1,000,000 tokens with 6 decimals)
         console.log('Minting 1,000,000 Token B to wallet...')
-        const mintResultB = await walletClient.mintTokens(publicKey as any, sendTransaction, new PublicKey(tokenBAddress), 10000000000000)
+        const mintResultB = await walletClient.mintTokens(publicKey.toBase58() as any, sendTransaction, tokenBAddress as any, 10000000000000)
         
         if (!mintResultB.success) {
           console.error('Failed to mint Token B:', mintResultB.error)

@@ -1,313 +1,284 @@
-import { PublicKey } from './kit';
-type Connection = any;
-type Transaction = any;
-type Keypair = any;
-class SendTransactionError extends Error { logs?: string[] }
-import { 
-  getAssociatedTokenAddressSync, 
-  createAssociatedTokenAccountInstruction
-} from '@solana/spl-token';
-import { TOKEN_SETUP_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID, TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '../config/program';
-import { TransactionResult } from './transaction-utils';
-import { rpcGetAccountInfo, derivePdaAddressSync } from './kit';
-import { Transaction as Web3Transaction, TransactionInstruction, PublicKey as Web3PublicKey, Keypair as Web3Keypair } from '@solana/web3.js';
-import { waitForConfirmation } from './confirm';
-import { AccountRole } from '@solana/kit';
-import { getCreateTokenWithHookInstruction } from '../clients/token_setup/instructions/createTokenWithHook';
-import { getMintTokensInstruction } from '../clients/token_setup/instructions/mintTokens';
-import { getInitializeExtraAccountMetaListInstructionAsync } from '../clients/token_setup/instructions/initializeExtraAccountMetaList';
+import { web3 } from '@coral-xyz/anchor'
+import { Buffer } from 'buffer'
+import {
+  getAssociatedTokenAddressSync,
+  createAssociatedTokenAccountInstruction,
+} from '@solana/spl-token'
+import { TOKEN_SETUP_PROGRAM_ID, COUNTER_HOOK_PROGRAM_ID } from '../config/program'
+import { TOKEN_2022_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID } from '../config/constants'
+import { TransactionResult } from './transaction-utils'
+import { waitForConfirmation } from './confirm'
+
+export type Connection = web3.Connection
+
+const textEncoder = new TextEncoder()
+
+function findPda(seeds: (Buffer | Uint8Array)[], programId: web3.PublicKey): [web3.PublicKey, number] {
+  return web3.PublicKey.findProgramAddressSync(seeds.map((s) => Buffer.from(s)), programId)
+}
 
 export class TokenSetupClient {
-  private connection: Connection;
-  private programId: PublicKey;
+  private connection: Connection
+  private programId: web3.PublicKey
 
   constructor(connection: Connection) {
-    this.connection = connection;
-    this.programId = new PublicKey(TOKEN_SETUP_PROGRAM_ID);
+    this.connection = connection
+    this.programId = new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
   }
 
   async createTokenWithHook(
-    walletPublicKey: PublicKey,
-    sendTransaction: (tx: any, connection: any, opts?: any) => Promise<string>,
+    walletPublicKey: string,
+    sendTransaction: (tx: web3.Transaction | web3.VersionedTransaction, connection: web3.Connection, opts?: any) => Promise<string>,
     name: string,
     symbol: string,
     uri: string
   ): Promise<TransactionResult> {
     try {
-      // Check if wallet has sufficient SOL
-      const balance = await this.connection.getBalance(walletPublicKey);
-      if (balance < 0.01 * 1e9) { // Less than 0.01 SOL
+      const balance = await this.connection.getBalance(new web3.PublicKey(walletPublicKey))
+      if (Number(balance) < 0.01 * 1e9) {
         return {
           signature: '',
           success: false,
-          error: `Insufficient SOL balance. Need at least 0.01 SOL, but have ${balance / 1e9} SOL`
-        };
+          error: `Insufficient SOL balance. Need at least 0.01 SOL, but have ${Number(balance) / 1e9} SOL`,
+        }
       }
-      // Generate a new mint keypair (web3.js) for the token mint (must be a signer)
-      const mintKeypair = Web3Keypair.generate();
 
-      // Build instruction using kinobi client (will auto-derive PDAs)
-      // Provide TransactionSigner-shaped objects so builder marks signers correctly
-      const kitMintSigner = {
-        address: mintKeypair.publicKey.toBase58(),
-        signTransactions: async (txs: any[]) => txs,
-        signMessages: async (msgs: any[]) => msgs,
-      } as any;
-      const kitWalletSigner = {
-        address: walletPublicKey.toBase58(),
-        signTransactions: async (txs: any[]) => txs,
-        signMessages: async (msgs: any[]) => msgs,
-      } as any;
-      // Pre-derive PDAs to satisfy on-chain seeds exactly
-      const extraAccountMetaListPda = derivePdaAddressSync([
-        'extra-account-metas',
-        mintKeypair.publicKey,
-      ], TOKEN_SETUP_PROGRAM_ID);
-      const mintTradeCounterPda = derivePdaAddressSync([
-        'mint-trade-counter',
-        mintKeypair.publicKey,
-      ], TOKEN_SETUP_PROGRAM_ID);
+      // Mint signer
+      const mintKeypair = web3.Keypair.generate()
+      const mintPubkey = mintKeypair.publicKey
 
-      const ix = getCreateTokenWithHookInstruction(
-        {
-          mint: kitMintSigner,
-          authority: kitWalletSigner,
-          payer: kitWalletSigner,
-          counterHookProgram: COUNTER_HOOK_PROGRAM_ID as any,
-          // Explicitly provide PDAs to match seeds
-          extraAccountMetaList: extraAccountMetaListPda.toBase58() as any,
-          mintTradeCounter: mintTradeCounterPda.toBase58() as any,
-          name,
-          symbol,
-          uri,
-        } as any,
-        { programAddress: TOKEN_SETUP_PROGRAM_ID as any }
-      );
+      // PDAs
+      const [extraAccountMetaListPda] = findPda(
+        [
+          Buffer.from('extra-account-metas'),
+          mintPubkey.toBuffer(),
+          new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID).toBuffer(),
+        ],
+        new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
+      )
+      const [mintTradeCounterPda] = findPda(
+        [Buffer.from('mint-trade-counter'), mintPubkey.toBuffer()],
+        new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
+      )
 
-      // Convert to web3.js TransactionInstruction
-      const web3Ix = new TransactionInstruction({
-        programId: new Web3PublicKey(ix.programAddress),
-        keys: ix.accounts.map((a: any) => {
-          const pubkey = new Web3PublicKey(a.address);
-          const role = a.role as AccountRole;
-          const isWritable = role === AccountRole.WRITABLE || role === (AccountRole as any).WRITABLE_SIGNER;
-          const isSigner = pubkey.equals(mintKeypair.publicKey) || pubkey.equals(walletPublicKey) || ('signer' in a && !!a.signer);
-          return { pubkey, isSigner, isWritable };
-        }),
-        data: Buffer.from(ix.data),
-      });
+      // Anchor data: discriminator + 3 strings (name, symbol, uri)
+      const discriminator = new Uint8Array([186, 132, 153, 159, 183, 146, 10, 218])
+      const encodeU32LE = (n: number) => {
+        const b = new Uint8Array(4)
+        new DataView(b.buffer).setUint32(0, n, true)
+        return b
+      }
+      const encodeString = (s: string) => {
+        const bytes = textEncoder.encode(s)
+        const out = new Uint8Array(4 + bytes.length)
+        out.set(encodeU32LE(bytes.length), 0)
+        out.set(bytes, 4)
+        return out
+      }
+      const nameBytes = encodeString(name)
+      const symbolBytes = encodeString(symbol)
+      const uriBytes = encodeString(uri)
+      const data = new Uint8Array(discriminator.length + nameBytes.length + symbolBytes.length + uriBytes.length)
+      let off = 0
+      data.set(discriminator, off), (off += discriminator.length)
+      data.set(nameBytes, off), (off += nameBytes.length)
+      data.set(symbolBytes, off), (off += symbolBytes.length)
+      data.set(uriBytes, off), (off += uriBytes.length)
 
-      // Build legacy transaction for wallet signing
-      const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
-      const tx = new Web3Transaction({ feePayer: walletPublicKey, recentBlockhash: blockhash });
-      tx.add(web3Ix);
+      const ix = new web3.TransactionInstruction({
+        programId: new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID),
+        keys: [
+          { pubkey: mintPubkey, isSigner: true, isWritable: true },
+          { pubkey: new web3.PublicKey(walletPublicKey), isSigner: true, isWritable: false }, // authority
+          { pubkey: new web3.PublicKey(walletPublicKey), isSigner: true, isWritable: true }, // payer
+          { pubkey: new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: extraAccountMetaListPda, isSigner: false, isWritable: true },
+          { pubkey: mintTradeCounterPda, isSigner: false, isWritable: false },
+          { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: new web3.PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new web3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from(data),
+      })
 
-      // Partially sign with the mint keypair (required signer)
-      tx.partialSign(mintKeypair);
-
-      // Let the wallet sign and send
-      const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 });
-      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed');
+      const { blockhash } = await this.connection.getLatestBlockhash('confirmed')
+      const msgV0 = new web3.TransactionMessage({
+        payerKey: new web3.PublicKey(walletPublicKey),
+        recentBlockhash: blockhash,
+        instructions: [ix],
+      }).compileToV0Message()
+      const tx = new web3.VersionedTransaction(msgV0)
+      tx.sign([mintKeypair])
+      const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 } as any)
+      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed')
       if (confirmation.value.err) {
-        return { signature, success: false, error: 'Transaction failed', logs: [] };
+        return { signature, success: false, error: 'Transaction failed', logs: [] }
       }
 
-      const mintAddress = mintKeypair.publicKey.toBase58();
-      const extraAccountMetaList = derivePdaAddressSync(['extra-account-metas', new PublicKey(mintAddress)], TOKEN_SETUP_PROGRAM_ID);
-      const mintTradeCounter = derivePdaAddressSync(['mint-trade-counter', new PublicKey(mintAddress)], COUNTER_HOOK_PROGRAM_ID);
+      const [extraAccountMetaList] = findPda(
+        [
+          Buffer.from('extra-account-metas'),
+          mintPubkey.toBuffer(),
+          new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID).toBuffer(),
+        ],
+        new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
+      )
+      const [mintTradeCounter] = findPda(
+        [Buffer.from('mint-trade-counter'), mintPubkey.toBuffer()],
+        new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
+      )
 
-      return { signature, success: true, error: null, logs: [], mintAddress, extraAccountMetaListAddress: extraAccountMetaList.toBase58(), mintTradeCounterAddress: mintTradeCounter.toBase58() };
-
-    } catch (error) {
-      console.error('Error creating token with hook:', error);
-      
-      // Handle SendTransactionError specifically
-      if (error instanceof SendTransactionError) {
-        return {
-          signature: '',
-          success: false,
-          error: `Transaction failed: ${error.message}`,
-          logs: error.logs || []
-        };
-      }
-      
       return {
-        signature: '',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+        signature,
+        success: true,
+        error: null,
+        logs: [],
+        mintAddress: mintPubkey.toBase58(),
+        extraAccountMetaListAddress: extraAccountMetaList.toBase58(),
+        mintTradeCounterAddress: mintTradeCounter.toBase58(),
+      }
+    } catch (error) {
+      console.error('Error creating token with hook:', error)
+      return { signature: '', success: false, error: (error as Error)?.message ?? 'Unknown error' }
     }
   }
 
   async mintTokens(
-    walletPublicKey: PublicKey,
-    sendTransaction: (tx: any, connection: any, opts?: any) => Promise<string>,
-    mint: PublicKey,
+    walletPublicKey: string,
+    sendTransaction: (tx: web3.Transaction | web3.VersionedTransaction, connection: web3.Connection, opts?: any) => Promise<string>,
+    mint: string,
     amount: number
   ): Promise<TransactionResult> {
     try {
-      // Check if wallet has sufficient SOL
-      const balance = await this.connection.getBalance(walletPublicKey);
-      if (balance < 0.01 * 1e9) {
+      const balance = await this.connection.getBalance(new web3.PublicKey(walletPublicKey))
+      if (Number(balance) < 0.01 * 1e9) {
         return {
           signature: '',
           success: false,
-          error: `Insufficient SOL balance. Need at least 0.01 SOL, but have ${balance / 1e9} SOL`
-        };
+          error: `Insufficient SOL balance. Need at least 0.01 SOL, but have ${Number(balance) / 1e9} SOL`,
+        }
       }
-      // Derive ATA
+
       const tokenAccount = getAssociatedTokenAddressSync(
-        mint,
-        walletPublicKey,
+        new web3.PublicKey(mint),
+        new web3.PublicKey(walletPublicKey),
         true,
-        new PublicKey(TOKEN_2022_PROGRAM_ID)
-      );
-      const ixs: TransactionInstruction[] = [];
-      // Create ATA up front if it doesn't exist (avoids inner CPI failures)
-      const tokenAccountInfo = (await rpcGetAccountInfo(tokenAccount)).value;
+        new web3.PublicKey(TOKEN_2022_PROGRAM_ID)
+      )
+      const ixs: web3.TransactionInstruction[] = []
+      const tokenAccountInfo = await this.connection.getAccountInfo(tokenAccount)
       if (!tokenAccountInfo) {
         ixs.push(
           createAssociatedTokenAccountInstruction(
-            walletPublicKey,
+            new web3.PublicKey(walletPublicKey),
             tokenAccount,
-            walletPublicKey,
-            mint,
-            new Web3PublicKey(TOKEN_2022_PROGRAM_ID),
-            new Web3PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID as any)
-          ) as any
-        );
+            new web3.PublicKey(walletPublicKey),
+            new web3.PublicKey(mint),
+            new web3.PublicKey(TOKEN_2022_PROGRAM_ID),
+            new web3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID)
+          )
+        )
       }
 
-      // Build mintTokens instruction via kinobi
-      // Provide TransactionSigner-shaped authority so meta marks as signer
-      const kitWalletSigner = {
-        address: walletPublicKey.toBase58(),
-        signTransactions: async (txs: any[]) => txs,
-        signMessages: async (msgs: any[]) => msgs,
-      } as any;
-      const mintIx = getMintTokensInstruction(
-        {
-          mint: mint.toBase58() as any,
-          tokenAccount: tokenAccount.toBase58() as any,
-          authority: kitWalletSigner,
-          amount: BigInt(amount) as any,
-        } as any,
-        { programAddress: TOKEN_SETUP_PROGRAM_ID as any }
-      );
+      const disc = new Uint8Array([59, 132, 24, 246, 122, 39, 8, 243])
+      const amountBuf = new Uint8Array(8)
+      new DataView(amountBuf.buffer).setBigUint64(0, BigInt(amount), true)
+      const data = new Uint8Array(disc.length + 8)
+      data.set(disc, 0)
+      data.set(amountBuf, disc.length)
 
-      const web3MintIx = new TransactionInstruction({
-        programId: new Web3PublicKey(mintIx.programAddress),
-        keys: mintIx.accounts.map((a: any) => {
-          const pubkey = new Web3PublicKey(a.address);
-          const role = a.role as AccountRole;
-          let isWritable = role === AccountRole.WRITABLE || role === (AccountRole as any).WRITABLE_SIGNER;
-          // Ensure mint is writable to avoid privilege escalation in CPI
-          if (pubkey.equals(mint)) {
-            isWritable = true;
-          }
-          const isSigner = pubkey.equals(walletPublicKey) || ('signer' in a && !!a.signer);
-          return { pubkey, isSigner, isWritable };
-        }),
-        data: Buffer.from(mintIx.data),
-      });
-      ixs.push(web3MintIx);
+      const mintIx = new web3.TransactionInstruction({
+        programId: new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID),
+        keys: [
+          { pubkey: new web3.PublicKey(mint), isSigner: false, isWritable: false },
+          { pubkey: tokenAccount, isSigner: false, isWritable: true },
+          { pubkey: new web3.PublicKey(walletPublicKey), isSigner: true, isWritable: true },
+          { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+          { pubkey: new web3.PublicKey(TOKEN_2022_PROGRAM_ID), isSigner: false, isWritable: false },
+          { pubkey: new web3.PublicKey(ASSOCIATED_TOKEN_PROGRAM_ID), isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from(data),
+      })
 
-      // Build and sign with wallet
-      const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
-      const tx = new Web3Transaction({ feePayer: walletPublicKey, recentBlockhash: blockhash });
-      tx.add(...ixs);
-      const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 });
-      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed');
+      const allIxs = [...ixs, mintIx]
+      const { blockhash } = await this.connection.getLatestBlockhash('confirmed')
+      const msgV0 = new web3.TransactionMessage({
+        payerKey: new web3.PublicKey(walletPublicKey),
+        recentBlockhash: blockhash,
+        instructions: allIxs,
+      }).compileToV0Message()
+      const tx = new web3.VersionedTransaction(msgV0)
+      const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 } as any)
+      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed')
       if (confirmation.value.err) {
-        const txInfo = await this.connection.getTransaction(signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 });
-        return { signature, success: false, error: 'Transaction failed', logs: txInfo?.meta?.logMessages || [] };
+        const txInfo = await this.connection.getTransaction(signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 })
+        return { signature, success: false, error: 'Transaction failed', logs: txInfo?.meta?.logMessages || [] }
       }
 
-      return { signature, success: true, error: null, logs: [], userAccountAddress: tokenAccount.toBase58() };
-
+      return { signature, success: true, error: null, logs: [], userAccountAddress: tokenAccount.toBase58() }
     } catch (error) {
-      console.error('Error minting tokens:', error);
-      
-      if (error instanceof SendTransactionError) {
-        return {
-          signature: '',
-          success: false,
-          error: `Transaction failed: ${error.message}`,
-          logs: error.logs || []
-        };
-      }
-      
-      return {
-        signature: '',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error('Error minting tokens:', error)
+      return { signature: '', success: false, error: (error as Error)?.message ?? 'Unknown error' }
     }
   }
 
   async initializeExtraAccountMetaList(
-    walletPublicKey: PublicKey,
-    sendTransaction: (tx: any, connection: any, opts?: any) => Promise<string>,
-    mint: PublicKey
+    walletPublicKey: string,
+    sendTransaction: (tx: web3.Transaction | web3.VersionedTransaction, connection: web3.Connection, opts?: any) => Promise<string>,
+    mint: string
   ): Promise<TransactionResult> {
     try {
-      // Check if wallet has sufficient SOL
-      const balance = await this.connection.getBalance(walletPublicKey);
-      if (balance < 0.01 * 1e9) {
+      const balance = await this.connection.getBalance(new web3.PublicKey(walletPublicKey))
+      if (Number(balance) < 0.01 * 1e9) {
         return {
           signature: '',
           success: false,
-          error: `Insufficient SOL balance. Need at least 0.01 SOL, but have ${balance / 1e9} SOL`
-        };
+          error: `Insufficient SOL balance. Need at least 0.01 SOL, but have ${Number(balance) / 1e9} SOL`,
+        }
       }
-      // Build kinobi instruction (auto-derive accounts)
-      const ix = await getInitializeExtraAccountMetaListInstructionAsync(
-        {
-          payer: walletPublicKey.toBase58() as any,
-          mint: mint.toBase58() as any,
-        } as any,
-        { programAddress: TOKEN_SETUP_PROGRAM_ID as any }
-      );
 
-      const web3Ix = new TransactionInstruction({
-        programId: new Web3PublicKey(ix.programAddress),
-        keys: ix.accounts.map((a: any) => {
-          const pubkey = new Web3PublicKey(a.address);
-          const role = a.role as AccountRole;
-          const isWritable = role === AccountRole.WRITABLE || role === (AccountRole as any).WRITABLE_SIGNER;
-          const isSigner = pubkey.equals(walletPublicKey) || ('signer' in a && !!a.signer);
-          return { pubkey, isSigner, isWritable };
-        }),
-        data: Buffer.from(ix.data),
-      });
+      const disc = new Uint8Array([92, 197, 174, 197, 41, 124, 19, 3])
+      const [extraAccountMetaListPda] = findPda(
+        [
+          Buffer.from('extra-account-metas'),
+          new web3.PublicKey(mint).toBuffer(),
+          new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID).toBuffer(),
+        ],
+        new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
+      )
+      const [mintTradeCounterPda] = findPda(
+        [Buffer.from('mint-trade-counter'), new web3.PublicKey(mint).toBuffer()],
+        new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
+      )
 
-      const { blockhash } = await this.connection.getLatestBlockhash('confirmed');
-      const tx = new Web3Transaction({ feePayer: walletPublicKey, recentBlockhash: blockhash });
-      tx.add(web3Ix);
-      const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 });
-      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed');
+      const ix = new web3.TransactionInstruction({
+        programId: new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID),
+        keys: [
+          { pubkey: new web3.PublicKey(walletPublicKey), isSigner: true, isWritable: true },
+          { pubkey: extraAccountMetaListPda, isSigner: false, isWritable: true },
+          { pubkey: new web3.PublicKey(mint), isSigner: false, isWritable: false },
+          { pubkey: mintTradeCounterPda, isSigner: false, isWritable: false },
+          { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
+        ],
+        data: Buffer.from(disc),
+      })
+
+      const { blockhash } = await this.connection.getLatestBlockhash('confirmed')
+      const msgV0 = new web3.TransactionMessage({
+        payerKey: new web3.PublicKey(walletPublicKey),
+        recentBlockhash: blockhash,
+        instructions: [ix],
+      }).compileToV0Message()
+      const tx = new web3.VersionedTransaction(msgV0)
+      const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 } as any)
+      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed')
       if (confirmation.value.err) {
-        return { signature, success: false, error: 'Transaction failed', logs: [] };
+        return { signature, success: false, error: 'Transaction failed', logs: [] }
       }
-      return { signature, success: true, error: null, logs: [] };
-
+      return { signature, success: true, error: null, logs: [] }
     } catch (error) {
-      console.error('Error initializing extra account meta list:', error);
-      
-      if (error instanceof SendTransactionError) {
-        return {
-          signature: '',
-          success: false,
-          error: `Transaction failed: ${error.message}`,
-          logs: error.logs || []
-        };
-      }
-      
-      return {
-        signature: '',
-        success: false,
-        error: error instanceof Error ? error.message : 'Unknown error'
-      };
+      console.error('Error initializing extra account meta list:', error)
+      return { signature: '', success: false, error: (error as Error)?.message ?? 'Unknown error' }
     }
   }
 } 

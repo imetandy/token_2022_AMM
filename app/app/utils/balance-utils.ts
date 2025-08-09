@@ -1,8 +1,7 @@
-import { PublicKey, derivePdaAddressSync, deriveAtaAddressSync } from './kit';
+import { web3 } from '@coral-xyz/anchor';
 type Connection = any;
-import { TOKEN_2022_PROGRAM_ID } from '@solana/spl-token';
 import { AMM_PROGRAM_ID } from '../config/program';
-import { rpcGetAccountInfo, toAddress } from './kit';
+import { TOKEN_2022_PROGRAM, ASSOCIATED_TOKEN_PROGRAM } from '../config/constants';
 
 export interface TokenBalance {
   mint: string;
@@ -20,44 +19,39 @@ export interface PoolBalances {
 
 export class BalanceUtils {
   private connection: Connection;
-  private programId: PublicKey;
+  private programId: web3.PublicKey;
 
   constructor(connection: Connection) {
     this.connection = connection;
-    this.programId = new PublicKey(AMM_PROGRAM_ID);
+    this.programId = new web3.PublicKey(AMM_PROGRAM_ID);
   }
 
   /**
    * Helper function to derive pool authority using findProgramAddressSync
    */
   private getPoolAuthorityInternal(
-    poolAddress: PublicKey,
-    tokenA: PublicKey,
-    tokenB: PublicKey
-  ): [PublicKey, number] {
-    // Use findProgramAddressSync to get the canonical bump
-    const poolAuthority = derivePdaAddressSync([
-      poolAddress,
-      tokenA,
-      tokenB,
-      'pool_authority',
-    ], this.programId.toBase58());
-    return [poolAuthority, 0];
+    poolAddress: web3.PublicKey,
+    tokenA: web3.PublicKey,
+    tokenB: web3.PublicKey
+  ): [web3.PublicKey, number] {
+    const [pda, bump] = web3.PublicKey.findProgramAddressSync(
+      [poolAddress.toBuffer(), tokenA.toBuffer(), tokenB.toBuffer(), Buffer.from('pool_authority')],
+      this.programId
+    );
+    return [pda, bump];
   }
 
 
 
   async getUserTokenBalance(
-    mintAddress: PublicKey,
-    userAddress: PublicKey
+    mintAddress: web3.PublicKey,
+    userAddress: web3.PublicKey
   ): Promise<TokenBalance> {
     try {
-      const tokenAccount = deriveAtaAddressSync({
-        owner: userAddress,
-        mint: mintAddress,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID.toBase58 ? TOKEN_2022_PROGRAM_ID.toBase58() : String(TOKEN_2022_PROGRAM_ID),
-        associatedTokenProgramAddressBase58: 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
-      });
+      const [tokenAccount] = web3.PublicKey.findProgramAddressSync(
+        [userAddress.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintAddress.toBuffer()],
+        ASSOCIATED_TOKEN_PROGRAM
+      );
 
       const accountInfo = await this.connection.getTokenAccountBalance(tokenAccount);
       
@@ -97,16 +91,14 @@ export class BalanceUtils {
   }
 
   async getPoolTokenBalance(
-    mintAddress: PublicKey,
-    poolAuthority: PublicKey
+    mintAddress: web3.PublicKey,
+    poolAuthority: web3.PublicKey
   ): Promise<TokenBalance> {
     try {
-      const poolTokenAccount = deriveAtaAddressSync({
-        owner: poolAuthority,
-        mint: mintAddress,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM_ID.toBase58 ? TOKEN_2022_PROGRAM_ID.toBase58() : String(TOKEN_2022_PROGRAM_ID),
-        associatedTokenProgramAddressBase58: 'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL',
-      });
+      const [poolTokenAccount] = web3.PublicKey.findProgramAddressSync(
+        [poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintAddress.toBuffer()],
+        ASSOCIATED_TOKEN_PROGRAM
+      );
 
       const accountInfo = await this.connection.getTokenAccountBalance(poolTokenAccount);
       
@@ -146,11 +138,11 @@ export class BalanceUtils {
   }
 
   async getPoolBalances(
-    ammAddress: PublicKey,
-    poolAddress: PublicKey,
-    tokenA: PublicKey,
-    tokenB: PublicKey,
-    userAddress: PublicKey
+    ammAddress: web3.PublicKey,
+    poolAddress: web3.PublicKey,
+    tokenA: web3.PublicKey,
+    tokenB: web3.PublicKey,
+    userAddress: web3.PublicKey
   ): Promise<PoolBalances> {
     try {
       // Derive pool authority using findProgramAddressSync
@@ -186,10 +178,10 @@ export class BalanceUtils {
   }
 
   async getPoolAuthority(
-    poolAddress: PublicKey,
-    tokenA: PublicKey,
-    tokenB: PublicKey
-  ): Promise<PublicKey> {
+    poolAddress: web3.PublicKey,
+    tokenA: web3.PublicKey,
+    tokenB: web3.PublicKey
+  ): Promise<web3.PublicKey> {
     const [poolAuthority] = this.getPoolAuthorityInternal(poolAddress, tokenA, tokenB);
     return poolAuthority;
   }

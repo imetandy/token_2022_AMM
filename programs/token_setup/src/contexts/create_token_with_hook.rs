@@ -38,21 +38,14 @@ pub struct CreateTokenWithHook<'info> {
     /// CHECK: Extra account meta list for mint
     #[account(
         init_if_needed,
-        seeds = [b"extra-account-metas", mint.key().as_ref()],
+        seeds = [b"extra-account-metas", mint.key().as_ref(), counter_hook_program.key().as_ref()],
         bump,
         payer = payer,
         space = 128 // Increased space for ExtraAccountMetaList with 1 account
     )]
     pub extra_account_meta_list: AccountInfo<'info>,
 
-    /// CHECK: Mint trade counter for mint
-    #[account(
-        init_if_needed,
-        seeds = [b"mint-trade-counter", mint.key().as_ref()],
-        bump,
-        payer = payer,
-        space = 8 + 32 + 8 + 8 + 8 + 8 + 8 + 32 // MintTradeCounter::LEN
-    )]
+    /// CHECK: Mint trade counter for mint (created by counter_hook program; not initialized here)
     pub mint_trade_counter: AccountInfo<'info>,
 
     /// CHECK: Solana ecosystem accounts
@@ -112,17 +105,9 @@ impl<'info> CreateTokenWithHook<'info> {
             &[mint_trade_counter_meta],
         )?;
         
-        // Initialize the mint trade counter
-        let counter_data = counter_hook::state::MintTradeCounter::new(
-            self.mint.key(),
-            self.authority.key(),
-        );
-        
-        counter_data.serialize(&mut &mut self.mint_trade_counter.data.borrow_mut()[..])?;
-        
         msg!("Step 5: Transfer hook accounts initialized successfully");
         msg!("Extra account meta list initialized with mint trade counter");
-        msg!("Mint trade counter initialized with default values");
+        msg!("Mint trade counter will be initialized by the counter hook program");
         
         msg!("=== CreateTokenWithHook completed successfully ===");
         msg!("Token-2022 mint with Transfer Hook created successfully!");

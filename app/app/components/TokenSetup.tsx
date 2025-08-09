@@ -1,18 +1,16 @@
 'use client';
 
 import React, { useState } from 'react';
-import { useWallet } from '@solana/wallet-adapter-react';
+import { useWallet, useConnection } from '@solana/wallet-adapter-react';
 import { TokenSetup } from '../utils/token-setup';
-import { PublicKey } from '../utils/kit';
-type Connection = any;
+import { web3 } from '@coral-xyz/anchor'
 
-interface TokenSetupProps {
-  connection: Connection;
-  ammProgramId: PublicKey;
-}
+interface TokenSetupProps {}
 
-export default function TokenSetupComponent({ connection, ammProgramId }: TokenSetupProps) {
+export default function TokenSetupComponent({}: TokenSetupProps) {
   const { publicKey } = useWallet();
+  const { connection } = useConnection();
+  const ammProgramId = new web3.PublicKey('H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos');
   const [mintAddress, setMintAddress] = useState('');
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<{ signature: string; tradeCounterAddress: string } | null>(null);

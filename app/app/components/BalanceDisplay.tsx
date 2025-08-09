@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey } from '../utils/kit'
 import { BalanceUtils, PoolBalances } from '../utils/balance-utils'
+import { web3 } from '@coral-xyz/anchor'
 
 interface BalanceDisplayProps {
   tokenA?: string | null
@@ -40,11 +40,11 @@ export default function BalanceDisplay({
     try {
       const balanceUtils = new BalanceUtils(connection)
       const poolBalances = await balanceUtils.getPoolBalances(
-        new PublicKey(ammAddress),
-        new PublicKey(poolAddress),
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
-        new PublicKey(publicKey.toBase58())
+        new web3.PublicKey(ammAddress),
+        new web3.PublicKey(poolAddress),
+        new web3.PublicKey(tokenA),
+        new web3.PublicKey(tokenB),
+        publicKey
       )
       setBalances(poolBalances)
     } catch (err) {

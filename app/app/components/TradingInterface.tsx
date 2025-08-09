@@ -2,13 +2,13 @@
 
 import { useState } from 'react'
 import { useWallet, useConnection } from '@solana/wallet-adapter-react'
-import { PublicKey } from '../utils/kit'
 import { AnchorClient } from '../utils/anchor-client'
 import { TransactionResult } from '../utils/transaction-utils'
 import TransactionResultComponent from './TransactionResult'
 import BalanceDisplay from './BalanceDisplay'
 import { COUNTER_HOOK_PROGRAM_ID } from '../config/program'
 import { testAccountDerivation } from '../utils/test-account-derivation'
+import { web3 } from '@coral-xyz/anchor'
 
 interface TradingInterfaceProps {
   tokenA?: string | null
@@ -82,7 +82,7 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
       const anchorClient = new AnchorClient(connection, { publicKey, signTransaction })
       
       // Convert amount using on-chain mint decimals
-      const mintAInfo = await connection.getParsedAccountInfo(new PublicKey(tokenA))
+      const mintAInfo = await connection.getParsedAccountInfo(new web3.PublicKey(tokenA as string))
       // jsonParsed path for Token-2022 mints
       const decimals = (mintAInfo?.value as any)?.data?.parsed?.info?.decimals ?? 6
       const scale = Math.pow(10, decimals)
@@ -91,15 +91,15 @@ export default function TradingInterface({ tokenA, tokenB, poolAddress, ammAddre
       
       // Execute swap
       const result = await anchorClient.swapTokens(
-        new PublicKey(ammAddress),
-        new PublicKey(poolAddress),
-        new PublicKey(tokenA),
-        new PublicKey(tokenB),
+        new web3.PublicKey(ammAddress as string),
+        new web3.PublicKey(poolAddress as string),
+        new web3.PublicKey(tokenA as string),
+        new web3.PublicKey(tokenB as string),
         swapData.direction === 'AtoB', // swapA
         inputAmount,
         minOutputAmount,
-        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint A
-        new PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint B
+        new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint A
+        new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID), // Transfer hook program ID for mint B
         signTransaction
       )
 

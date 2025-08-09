@@ -1,9 +1,8 @@
-import { PublicKey } from '../utils/kit'
-type Connection = any; type Transaction = any;
 import { Program, AnchorProvider, web3, BN } from '@coral-xyz/anchor'
+type Connection = any; type Transaction = any;
 import * as AMM_IDL from '../types/amm.json'
 import { createRpc } from '../config/rpc-config'
-import { derivePdaAddressSync, deriveAtaAddressSync } from './kit'
+// Replace custom kit helpers with web3 derivations
 import { waitForConfirmation } from './confirm'
 
 import { 
@@ -14,6 +13,7 @@ import {
   EXTRA_ACCOUNT_METAS_SEED,
   MINT_TRADE_COUNTER_SEED
 } from '../config/constants'
+import { COUNTER_HOOK_PROGRAM_ID } from '../config/program'
 
 export class AnchorClient {
   private connection: Connection
@@ -61,13 +61,15 @@ export class AnchorClient {
   }
 
   async createAmm(
-    mintA: PublicKey,
-    mintB: PublicKey,
+    mintA: web3.PublicKey,
+    mintB: web3.PublicKey,
     solFeeLamports: number,
-    solFeeCollector: PublicKey,
+    solFeeCollector: web3.PublicKey,
     signTransaction: (t: Transaction) => Promise<Transaction>
   ) {
-    const amm = derivePdaAddressSync(['amm', mintA, mintB], this.program.programId.toBase58())
+    const [amm] = web3.PublicKey.findProgramAddressSync([
+      Buffer.from('amm'), mintA.toBuffer(), mintB.toBuffer()
+    ], this.program.programId)
     const tx = await this.program.methods
       .createAmm(mintA, mintB, new BN(solFeeLamports), solFeeCollector)
       .accounts({
@@ -86,13 +88,13 @@ export class AnchorClient {
   }
 
   async createPool(
-    mintA: PublicKey,
-    mintB: PublicKey,
+    mintA: web3.PublicKey,
+    mintB: web3.PublicKey,
     signTransaction: (t: Transaction) => Promise<Transaction>
   ) {
-    const amm = derivePdaAddressSync(['amm', mintA, mintB], this.program.programId.toBase58())
-    const pool = derivePdaAddressSync([amm, mintA, mintB], this.program.programId.toBase58())
-    const poolAuthority = derivePdaAddressSync([pool, mintA, mintB, POOL_AUTHORITY_SEED], this.program.programId.toBase58())
+    const [amm] = web3.PublicKey.findProgramAddressSync([Buffer.from('amm'), mintA.toBuffer(), mintB.toBuffer()], this.program.programId)
+    const [pool] = web3.PublicKey.findProgramAddressSync([amm.toBuffer(), mintA.toBuffer(), mintB.toBuffer()], this.program.programId)
+    const [poolAuthority] = web3.PublicKey.findProgramAddressSync([pool.toBuffer(), mintA.toBuffer(), mintB.toBuffer(), Buffer.from(POOL_AUTHORITY_SEED)], this.program.programId)
     const lpKeypair = web3.Keypair.generate()
     const lpPubkey = lpKeypair.publicKey
 
@@ -118,17 +120,17 @@ export class AnchorClient {
   }
 
   async createPoolTokenAccounts(
-    mintA: PublicKey,
-    mintB: PublicKey,
-    lpMint: PublicKey,
-    pool: PublicKey,
+    mintA: web3.PublicKey,
+    mintB: web3.PublicKey,
+    lpMint: web3.PublicKey,
+    pool: web3.PublicKey,
     signTransaction: (t: Transaction) => Promise<Transaction>
   ) {
-    const amm = derivePdaAddressSync(['amm', mintA, mintB], this.program.programId.toBase58())
-    const poolAuthority = derivePdaAddressSync([pool, mintA, mintB, POOL_AUTHORITY_SEED], this.program.programId.toBase58())
-    const poolAccountA = deriveAtaAddressSync({ owner: poolAuthority, mint: mintA, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
-    const poolAccountB = deriveAtaAddressSync({ owner: poolAuthority, mint: mintB, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
-    const poolLpAccount = deriveAtaAddressSync({ owner: poolAuthority, mint: lpMint, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
+    const [amm] = web3.PublicKey.findProgramAddressSync([Buffer.from('amm'), mintA.toBuffer(), mintB.toBuffer()], this.program.programId)
+    const [poolAuthority] = web3.PublicKey.findProgramAddressSync([pool.toBuffer(), mintA.toBuffer(), mintB.toBuffer(), Buffer.from(POOL_AUTHORITY_SEED)], this.program.programId)
+    const [poolAccountA] = web3.PublicKey.findProgramAddressSync([poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintA.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
+    const [poolAccountB] = web3.PublicKey.findProgramAddressSync([poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintB.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
+    const [poolLpAccount] = web3.PublicKey.findProgramAddressSync([poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), lpMint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
 
     console.log('[createPoolTokenAccounts] poolAuthority:', poolAuthority.toBase58())
     console.log('[createPoolTokenAccounts] expected poolAccountA:', poolAccountA.toBase58())
@@ -159,34 +161,34 @@ export class AnchorClient {
   }
 
   async depositLiquidity(
-    mintA: PublicKey,
-    mintB: PublicKey,
-    pool: PublicKey,
-    lpMint: PublicKey,
+    mintA: web3.PublicKey,
+    mintB: web3.PublicKey,
+    pool: web3.PublicKey,
+    lpMint: web3.PublicKey,
     amountA: number,
     amountB: number,
-    transferHookProgramId: PublicKey,
+    transferHookProgramId: web3.PublicKey,
     signTransaction: (t: Transaction) => Promise<Transaction>
   ) {
-    const amm = derivePdaAddressSync(['amm', mintA, mintB], this.program.programId.toBase58())
-    const poolAuthority = derivePdaAddressSync([pool, mintA, mintB, POOL_AUTHORITY_SEED], this.program.programId.toBase58())
+    const [amm] = web3.PublicKey.findProgramAddressSync([Buffer.from('amm'), mintA.toBuffer(), mintB.toBuffer()], this.program.programId)
+    const [poolAuthority] = web3.PublicKey.findProgramAddressSync([pool.toBuffer(), mintA.toBuffer(), mintB.toBuffer(), Buffer.from(POOL_AUTHORITY_SEED)], this.program.programId)
     const user = this.provider.wallet.publicKey
-    const userAccountA = deriveAtaAddressSync({ owner: user, mint: mintA, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
-    const userAccountB = deriveAtaAddressSync({ owner: user, mint: mintB, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
-    const userLpAccount = deriveAtaAddressSync({ owner: user, mint: lpMint, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
+    const [userAccountA] = web3.PublicKey.findProgramAddressSync([user.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintA.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
+    const [userAccountB] = web3.PublicKey.findProgramAddressSync([user.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintB.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
+    const [userLpAccount] = web3.PublicKey.findProgramAddressSync([user.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), lpMint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
     // Fetch pool state and use recorded vaults to satisfy Anchor associated constraints
     const poolState = await (this.program.account as any).pool.fetch(pool)
-    const poolAccountA = new PublicKey(poolState.vaultA ?? poolState.vault_a)
-    const poolAccountB = new PublicKey(poolState.vaultB ?? poolState.vault_b)
-    const poolLpAccount = deriveAtaAddressSync({ owner: poolAuthority, mint: lpMint, tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(), associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58() })
+    const poolAccountA = new web3.PublicKey(poolState.vaultA ?? poolState.vault_a)
+    const poolAccountB = new web3.PublicKey(poolState.vaultB ?? poolState.vault_b)
+    const [poolLpAccount] = web3.PublicKey.findProgramAddressSync([poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), lpMint.toBuffer()], ASSOCIATED_TOKEN_PROGRAM)
 
     console.log('[depositLiquidity] amm:', amm.toBase58())
     console.log('[depositLiquidity] pool:', pool.toBase58())
     console.log('[depositLiquidity] poolAuthority:', poolAuthority.toBase58())
     console.log('[depositLiquidity] mintA:', mintA.toBase58())
     console.log('[depositLiquidity] mintB:', mintB.toBase58())
-    console.log('[depositLiquidity] poolState.vaultA:', new PublicKey(poolState.vaultA ?? poolState.vault_a).toBase58())
-    console.log('[depositLiquidity] poolState.vaultB:', new PublicKey(poolState.vaultB ?? poolState.vault_b).toBase58())
+    console.log('[depositLiquidity] poolState.vaultA:', new web3.PublicKey(poolState.vaultA ?? poolState.vault_a).toBase58())
+    console.log('[depositLiquidity] poolState.vaultB:', new web3.PublicKey(poolState.vaultB ?? poolState.vault_b).toBase58())
     console.log('[depositLiquidity] derived poolAccountA:', poolAccountA.toBase58())
     console.log('[depositLiquidity] derived poolAccountB:', poolAccountB.toBase58())
     console.log('[depositLiquidity] derived poolLpAccount:', poolLpAccount.toBase58())
@@ -196,10 +198,10 @@ export class AnchorClient {
     console.log('[depositLiquidity] tokenProgram (Token-2022):', TOKEN_2022_PROGRAM.toBase58())
     console.log('[depositLiquidity] associatedTokenProgram:', ASSOCIATED_TOKEN_PROGRAM.toBase58())
 
-    const extraAccountMetaListA = derivePdaAddressSync([EXTRA_ACCOUNT_METAS_SEED, mintA], TOKEN_SETUP_PROGRAM.toBase58())
-    const extraAccountMetaListB = derivePdaAddressSync([EXTRA_ACCOUNT_METAS_SEED, mintB], TOKEN_SETUP_PROGRAM.toBase58())
-    const mintTradeCounterA = derivePdaAddressSync([MINT_TRADE_COUNTER_SEED, mintA], TOKEN_SETUP_PROGRAM.toBase58())
-    const mintTradeCounterB = derivePdaAddressSync([MINT_TRADE_COUNTER_SEED, mintB], TOKEN_SETUP_PROGRAM.toBase58())
+    const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync([Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintA.toBuffer()], TOKEN_SETUP_PROGRAM)
+    const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync([Buffer.from(EXTRA_ACCOUNT_METAS_SEED), mintB.toBuffer()], TOKEN_SETUP_PROGRAM)
+    const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync([Buffer.from(MINT_TRADE_COUNTER_SEED), mintA.toBuffer()], TOKEN_SETUP_PROGRAM)
+    const [mintTradeCounterB] = web3.PublicKey.findProgramAddressSync([Buffer.from(MINT_TRADE_COUNTER_SEED), mintB.toBuffer()], TOKEN_SETUP_PROGRAM)
 
     const tx = await this.program.methods
       .depositLiquidity(new BN(amountA), new BN(amountB))
@@ -233,55 +235,40 @@ export class AnchorClient {
     return { signature: res.signature, success: !res.err }
   }
   async swapTokens(
-    ammId: PublicKey,
-    poolAddress: PublicKey,
-    mintA: PublicKey,
-    mintB: PublicKey,
+    ammId: web3.PublicKey,
+    poolAddress: web3.PublicKey,
+    mintA: web3.PublicKey,
+    mintB: web3.PublicKey,
     swapA: boolean,
     inputAmount: number,
     minOutputAmount: number,
-    transferHookProgramIdA: PublicKey,
-    transferHookProgramIdB: PublicKey,
+    transferHookProgramIdA: web3.PublicKey,
+    transferHookProgramIdB: web3.PublicKey,
     signTransaction: (transaction: Transaction) => Promise<Transaction>
   ) {
     try {
       // Derive pool authority using Anchor's utils
-      const poolAuthority = derivePdaAddressSync([
-        poolAddress,
-        mintA,
-        mintB,
-        POOL_AUTHORITY_SEED,
-      ], this.program.programId.toBase58())
+      const [poolAuthority] = web3.PublicKey.findProgramAddressSync([
+        poolAddress.toBuffer(), mintA.toBuffer(), mintB.toBuffer(), Buffer.from(POOL_AUTHORITY_SEED)
+      ], this.program.programId)
 
       // Derive pool accounts using manual ATA derivation with Token-2022 seeds
-      const poolAccountA = deriveAtaAddressSync({
-        owner: poolAuthority,
-        mint: mintA,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
-      })
+      const [poolAccountA] = web3.PublicKey.findProgramAddressSync([
+        poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintA.toBuffer()
+      ], ASSOCIATED_TOKEN_PROGRAM)
 
-      const poolAccountB = deriveAtaAddressSync({
-        owner: poolAuthority,
-        mint: mintB,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
-      })
+      const [poolAccountB] = web3.PublicKey.findProgramAddressSync([
+        poolAuthority.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintB.toBuffer()
+      ], ASSOCIATED_TOKEN_PROGRAM)
 
       // Derive user accounts using manual ATA derivation with Token-2022 seeds
-      const userAccountA = deriveAtaAddressSync({
-        owner: this.provider.wallet.publicKey,
-        mint: mintA,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
-      })
+      const [userAccountA] = web3.PublicKey.findProgramAddressSync([
+        this.provider.wallet.publicKey.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintA.toBuffer()
+      ], ASSOCIATED_TOKEN_PROGRAM)
 
-      const userAccountB = deriveAtaAddressSync({
-        owner: this.provider.wallet.publicKey,
-        mint: mintB,
-        tokenProgramAddressBase58: TOKEN_2022_PROGRAM.toBase58(),
-        associatedTokenProgramAddressBase58: ASSOCIATED_TOKEN_PROGRAM.toBase58(),
-      })
+      const [userAccountB] = web3.PublicKey.findProgramAddressSync([
+        this.provider.wallet.publicKey.toBuffer(), TOKEN_2022_PROGRAM.toBuffer(), mintB.toBuffer()
+      ], ASSOCIATED_TOKEN_PROGRAM)
 
       console.log('Using manual ATA derivation (Token-2022):')
       console.log('Pool Account A:', poolAccountA.toString())
@@ -289,26 +276,26 @@ export class AnchorClient {
       console.log('User Account A:', userAccountA.toString())
       console.log('User Account B:', userAccountB.toString())
 
-      // Derive transfer hook accounts using Anchor's utils
-      const extraAccountMetaListA = derivePdaAddressSync([
-        EXTRA_ACCOUNT_METAS_SEED,
-        mintA,
-      ], TOKEN_SETUP_PROGRAM.toBase58())
+      // Derive transfer hook accounts using kit PDA helper
+      const [extraAccountMetaListA] = web3.PublicKey.findProgramAddressSync([
+        Buffer.from(EXTRA_ACCOUNT_METAS_SEED),
+        mintA.toBuffer(),
+      ], TOKEN_SETUP_PROGRAM)
 
-      const mintTradeCounterA = derivePdaAddressSync([
-        MINT_TRADE_COUNTER_SEED,
-        mintA,
-      ], TOKEN_SETUP_PROGRAM.toBase58())
+      const [mintTradeCounterA] = web3.PublicKey.findProgramAddressSync([
+        Buffer.from(MINT_TRADE_COUNTER_SEED),
+        mintA.toBuffer(),
+      ], TOKEN_SETUP_PROGRAM)
 
-      const extraAccountMetaListB = derivePdaAddressSync([
-        EXTRA_ACCOUNT_METAS_SEED,
-        mintB,
-      ], TOKEN_SETUP_PROGRAM.toBase58())
+      const [extraAccountMetaListB] = web3.PublicKey.findProgramAddressSync([
+        Buffer.from(EXTRA_ACCOUNT_METAS_SEED),
+        mintB.toBuffer(),
+      ], TOKEN_SETUP_PROGRAM)
 
-      const mintTradeCounterB = derivePdaAddressSync([
-        MINT_TRADE_COUNTER_SEED,
-        mintB,
-      ], TOKEN_SETUP_PROGRAM.toBase58())
+      const [mintTradeCounterB] = web3.PublicKey.findProgramAddressSync([
+        Buffer.from(MINT_TRADE_COUNTER_SEED),
+        mintB.toBuffer(),
+      ], TOKEN_SETUP_PROGRAM)
 
       // Use Anchor's generated instruction with proper account mapping
       const tx = await this.program.methods

@@ -194,19 +194,9 @@ impl<'info> Swap<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook program ID first (required by the guide)
-            transfer_ix.accounts.push(AccountMeta::new_readonly(
-                self.transfer_hook_program_a.key(),
-                false,
-            ));
-            
-            // Add transfer hook accounts for mint A
+            // Add transfer hook accounts for mint A (validation account only)
             transfer_ix.accounts.push(AccountMeta::new_readonly(
                 self.extra_account_meta_list_a.key(),
-                false,
-            ));
-            transfer_ix.accounts.push(AccountMeta::new(
-                self.mint_trade_counter_a.key(),
                 false,
             ));
             
@@ -217,9 +207,7 @@ impl<'info> Swap<'info> {
                 self.mint_a.to_account_info(),
                 self.pool_account_a.to_account_info(),
                 self.user.to_account_info(),
-                self.transfer_hook_program_a.to_account_info(),
                 self.extra_account_meta_list_a.to_account_info(),
-                self.mint_trade_counter_a.to_account_info(),
             ];
             
             invoke(&transfer_ix, account_infos)?;
@@ -236,19 +224,9 @@ impl<'info> Swap<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook program ID first (required by the guide)
-            transfer_ix.accounts.push(AccountMeta::new_readonly(
-                self.transfer_hook_program_b.key(),
-                false,
-            ));
-            
-            // Add transfer hook accounts for mint B
+            // Add transfer hook accounts for mint B (validation account only)
             transfer_ix.accounts.push(AccountMeta::new_readonly(
                 self.extra_account_meta_list_b.key(),
-                false,
-            ));
-            transfer_ix.accounts.push(AccountMeta::new(
-                self.mint_trade_counter_b.key(),
                 false,
             ));
             
@@ -259,9 +237,7 @@ impl<'info> Swap<'info> {
                 self.mint_b.to_account_info(),
                 self.pool_account_b.to_account_info(),
                 self.user.to_account_info(),
-                self.transfer_hook_program_b.to_account_info(),
                 self.extra_account_meta_list_b.to_account_info(),
-                self.mint_trade_counter_b.to_account_info(),
             ];
             
             invoke(&transfer_ix, account_infos)?;
@@ -301,19 +277,9 @@ impl<'info> Swap<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook program ID first (required by the guide)
-            transfer_ix.accounts.push(AccountMeta::new_readonly(
-                self.transfer_hook_program_a.key(),
-                false,
-            ));
-            
-            // Add transfer hook accounts for mint A
+            // Add transfer hook accounts for mint A (validation account only)
             transfer_ix.accounts.push(AccountMeta::new_readonly(
                 self.extra_account_meta_list_a.key(),
-                false,
-            ));
-            transfer_ix.accounts.push(AccountMeta::new(
-                self.mint_trade_counter_a.key(),
                 false,
             ));
             
@@ -324,9 +290,7 @@ impl<'info> Swap<'info> {
                 self.mint_a.to_account_info(),
                 self.user_account_a.to_account_info(),
                 self.pool_authority.to_account_info(),
-                self.transfer_hook_program_a.to_account_info(),
                 self.extra_account_meta_list_a.to_account_info(),
-                self.mint_trade_counter_a.to_account_info(),
             ];
             
             invoke_signed(&transfer_ix, account_infos, &[&authority_seeds[..]])?;
@@ -343,19 +307,9 @@ impl<'info> Swap<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook program ID first (required by the guide)
-            transfer_ix.accounts.push(AccountMeta::new_readonly(
-                self.transfer_hook_program_b.key(),
-                false,
-            ));
-            
-            // Add transfer hook accounts for mint B
+            // Add transfer hook accounts for mint B (validation account only)
             transfer_ix.accounts.push(AccountMeta::new_readonly(
                 self.extra_account_meta_list_b.key(),
-                false,
-            ));
-            transfer_ix.accounts.push(AccountMeta::new(
-                self.mint_trade_counter_b.key(),
                 false,
             ));
             
@@ -366,9 +320,7 @@ impl<'info> Swap<'info> {
                 self.mint_b.to_account_info(),
                 self.user_account_b.to_account_info(),
                 self.pool_authority.to_account_info(),
-                self.transfer_hook_program_b.to_account_info(),
                 self.extra_account_meta_list_b.to_account_info(),
-                self.mint_trade_counter_b.to_account_info(),
             ];
             
             invoke_signed(&transfer_ix, account_infos, &[&authority_seeds[..]])?;

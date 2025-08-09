@@ -3,7 +3,6 @@
 import React, { useState } from 'react';
 import { useWallet } from '@solana/wallet-adapter-react';
 import { TokenMinting } from '../utils/token-minting';
-import { PublicKey } from '../utils/kit';
 type Connection = any;
 
 interface TokenBalanceProps {

@@ -1,7 +1,7 @@
 "use client"
 
 import bs58 from 'bs58'
-import { Keypair, PublicKey, Transaction, Connection, VersionedTransaction } from '@solana/web3.js'
+import { web3 } from '@coral-xyz/anchor'
 import {
   BaseMessageSignerWalletAdapter,
   WalletAdapterNetwork,
@@ -41,16 +41,16 @@ function parseSecretKeyFromEnvOrStorage(): Uint8Array | null {
 class DevKeypairWalletAdapter extends BaseMessageSignerWalletAdapter {
   readonly name: WalletName = 'Dev Keypair' as WalletName
   readonly url = 'https://github.com/anza-xyz/kit'
-  readonly icon = 'data:image/svg+xml;base64,' // empty icon
-  readonly supportedTransactionVersions = null as any
+  readonly icon = '/icon.png' // empty icon
+  readonly supportedTransactionVersions: null = null
   readonly network: WalletAdapterNetwork | null = null
 
-  private keypair: Keypair | null = null
-  private _publicKey: PublicKey | null = null
+  private keypair: web3.Keypair | null = null
+  private _publicKey: web3.PublicKey | null = null
   private _connecting = false
   private _readyState: WalletReadyState = WalletReadyState.Loadable
 
-  get publicKey(): PublicKey | null {
+  get publicKey(): web3.PublicKey | null {
     return this._publicKey
   }
 
@@ -86,7 +86,7 @@ class DevKeypairWalletAdapter extends BaseMessageSignerWalletAdapter {
         }
       }
       if (!secret) throw new Error('Dev wallet secret key not provided')
-      this.keypair = Keypair.fromSecretKey(secret)
+      this.keypair = web3.Keypair.fromSecretKey(secret)
       this._publicKey = this.keypair.publicKey
       this.emit('connect', this._publicKey)
     } catch (e) {
@@ -104,13 +104,13 @@ class DevKeypairWalletAdapter extends BaseMessageSignerWalletAdapter {
   }
 
   async sendTransaction(
-    transaction: Transaction | VersionedTransaction,
-    connection: Connection,
+    transaction: web3.Transaction | web3.VersionedTransaction,
+    connection: web3.Connection,
     options?: { preflightCommitment?: Commitment; skipPreflight?: boolean; maxRetries?: number }
   ): Promise<string> {
     if (!this.keypair || !this._publicKey) throw new Error('Wallet not connected')
 
-    if (transaction instanceof VersionedTransaction) {
+      if (transaction instanceof web3.VersionedTransaction) {
       transaction.sign([this.keypair])
       const sig = await connection.sendRawTransaction(transaction.serialize(), {
         skipPreflight: options?.skipPreflight ?? true,
@@ -118,7 +118,7 @@ class DevKeypairWalletAdapter extends BaseMessageSignerWalletAdapter {
       })
       return sig
     } else {
-      if (!transaction.recentBlockhash) {
+        if (!transaction.recentBlockhash) {
         const { blockhash } = await connection.getLatestBlockhash(options?.preflightCommitment ?? 'confirmed')
         transaction.recentBlockhash = blockhash
       }
@@ -132,9 +132,9 @@ class DevKeypairWalletAdapter extends BaseMessageSignerWalletAdapter {
     }
   }
 
-  async signTransaction<T extends Transaction | VersionedTransaction>(transaction: T): Promise<T> {
+  async signTransaction<T extends web3.Transaction | web3.VersionedTransaction>(transaction: T): Promise<T> {
     if (!this.keypair) throw new Error('Wallet not connected')
-    if (transaction instanceof VersionedTransaction) {
+    if (transaction instanceof web3.VersionedTransaction) {
       transaction.sign([this.keypair])
       return transaction as T
     } else {
@@ -143,10 +143,10 @@ class DevKeypairWalletAdapter extends BaseMessageSignerWalletAdapter {
     }
   }
 
-  async signAllTransactions<T extends Transaction | VersionedTransaction>(transactions: T[]): Promise<T[]> {
+  async signAllTransactions<T extends web3.Transaction | web3.VersionedTransaction>(transactions: T[]): Promise<T[]> {
     if (!this.keypair) throw new Error('Wallet not connected')
     return transactions.map((tx) => {
-      if (tx instanceof VersionedTransaction) {
+      if (tx instanceof web3.VersionedTransaction) {
         tx.sign([this.keypair!])
         return tx as T
       } else {

@@ -1,14 +1,18 @@
 'use client'
 
-import { useState, useCallback } from 'react'
+import { useState, useCallback, useEffect } from 'react'
 import bs58 from 'bs58'
 import { createRpc } from './config/rpc-config'
 import { setDevWalletSecretInStorage } from './utils/dev-wallet-adapter'
-import TokenCreationForm from './components/TokenCreationForm'
-import TradingInterface from './components/TradingInterface'
-import PoolCreationForm from './components/PoolCreationForm'
+// legacy forms removed from postcard UI
 
 import { WalletConnectButton } from './components/WalletConnectButton'
+import Orchestrator from './components/fishing/Orchestrator'
+import { StageProvider } from './components/fishing/stage'
+import ConsoleOverlay from './components/fishing/ConsoleOverlay'
+import AMMFishermanWidget from '@/widgets/AMMFishermanWidget'
+import { TokenSetup } from './utils/token-setup'
+import { AMM_PROGRAM_ID } from './config/program'
 type Connection = any
 
 export default function Home() {
@@ -25,6 +29,11 @@ export default function Home() {
   }>({ amm: null, pool: null })
 
   const [refreshTrigger, setRefreshTrigger] = useState(0)
+  const [depositDone, setDepositDone] = useState(false)
+
+  // Simple demo reserves for the AMMFishermanWidget
+  const [demoReserves, setDemoReserves] = useState<{ tokenA: number; tokenB: number }>({ tokenA: 6, tokenB: 6 })
+  const getReserves = useCallback(() => demoReserves, [demoReserves])
 
   const [faucetState, setFaucetState] = useState<{
     address: string | null;
@@ -33,6 +42,29 @@ export default function Home() {
     isLoading: boolean;
     error: string | null;
   }>({ address: null, secretKey: null, signature: null, isLoading: false, error: null })
+
+  // One-shot swap animation trigger state
+  const [swapAnim, setSwapAnim] = useState<{ direction: 'AtoB' | 'BtoA'; triggerId: number } | null>(null)
+  const bumpSwapAnim = (direction: 'AtoB' | 'BtoA') => setSwapAnim(prev => ({ direction, triggerId: (prev?.triggerId ?? 0) + 1 }))
+
+  // Live counter display
+  const [counters, setCounters] = useState<{ a?: number | null; b?: number | null }>({ a: null, b: null })
+  const refreshCounters = useCallback(async () => {
+    try {
+      if (!createdTokens.tokenA && !createdTokens.tokenB) return
+      const { web3 } = await import('@coral-xyz/anchor')
+      const setup = new TokenSetup((window as any).solanaConnection ?? ({} as any), new web3.PublicKey(AMM_PROGRAM_ID))
+      const [a, b] = await Promise.all([
+        createdTokens.tokenA ? setup.getTradeCounter(createdTokens.tokenA) : Promise.resolve(null),
+        createdTokens.tokenB ? setup.getTradeCounter(createdTokens.tokenB) : Promise.resolve(null),
+      ])
+      setCounters({ a: a?.totalTransfers ?? 0, b: b?.totalTransfers ?? 0 })
+    } catch {
+      // ignore
+    }
+  }, [createdTokens.tokenA, createdTokens.tokenB])
+
+  useEffect(() => { refreshCounters() }, [refreshTrigger, createdTokens.tokenA, createdTokens.tokenB])
 
   const handleDevnetFaucet = useCallback(async () => {
     try {
@@ -82,6 +114,7 @@ export default function Home() {
 
   const handleTokensSet = useCallback((tokenA: string, tokenB: string, userAccountA: string, userAccountB: string) => {
     setCreatedTokens({ tokenA, tokenB, userAccountA, userAccountB });
+    setTimeout(() => setRefreshTrigger(x=>x+1), 500)
   }, []);
 
   const handlePoolCreated = useCallback((amm: string, pool: string) => {
@@ -90,242 +123,138 @@ export default function Home() {
     setRefreshTrigger(prev => prev + 1);
   }, []);
 
+  // Activation flags: all start deactivated and flip to active after success
+  const activation = {
+    fishA: !!createdTokens.tokenA,
+    fishB: !!createdTokens.tokenB,
+    fisherman: !!(createdTokens.tokenA && createdTokens.tokenB && createdPool.amm && createdPool.pool),
+    pond: !!(createdPool.pool && depositDone),
+  };
+
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-12">
-            <div className="flex items-center space-x-3">
-              <div className="w-6 h-6 bg-gradient-to-r from-blue-500 to-purple-600 rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-xs">T</span>
-              </div>
-              <h1 className="text-base font-bold text-gray-900">
-                Token-2022 AMM
-              </h1>
-              <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-700 rounded-full">
-                Transfer Hooks
-              </span>
-            </div>
-            <div className="flex items-center space-x-4">
-              <div className="hidden sm:block text-xs text-gray-500">
-                Devnet
-              </div>
-              <button
-                onClick={handleDevnetFaucet}
-                disabled={faucetState.isLoading}
-                className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
-                title="Generate a new devnet keypair and airdrop 5 SOL"
-              >
-                {faucetState.isLoading ? 'Airdropping 5 SOL...' : 'Devnet Faucet (5 SOL)'}
-              </button>
-              {faucetState.secretKey && (
-                <button
-                  onClick={() => {
-                    setDevWalletSecretInStorage(faucetState.secretKey!)
-                    if (typeof window !== 'undefined') {
-                      try {
-                        window.localStorage.setItem('@solana/wallet-adapter-react:walletName', 'Dev Keypair')
-                      } catch {}
-                      window.location.reload()
-                    }
-                  }}
-                  className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-800"
-                  title="Use the faucet keypair as the app's dev wallet"
-                >
-                  Use As Dev Wallet
-                </button>
-              )}
-              <WalletConnectButton />
-            </div>
-          </div>
-        </div>
-      </header>
-
-      {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        {/* Progress Steps */}
-        <div className="mb-4">
-          <div className="flex items-center justify-center space-x-2">
-            <div className={`flex items-center space-x-1 ${createdTokens.tokenA && createdTokens.tokenB ? 'text-green-600' : 'text-gray-400'}`}>
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${createdTokens.tokenA && createdTokens.tokenB ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                {createdTokens.tokenA && createdTokens.tokenB ? '✓' : '1'}
-              </div>
-              <span className="text-xs font-medium">Create Tokens</span>
-            </div>
-            <div className={`w-6 h-0.5 ${createdTokens.tokenA && createdTokens.tokenB ? 'bg-green-300' : 'bg-gray-200'}`}></div>
-            <div className={`flex items-center space-x-1 ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
-              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium ${createdPool.amm && createdPool.pool ? 'bg-green-100 text-green-600' : 'bg-gray-100 text-gray-400'}`}>
-                {createdPool.amm && createdPool.pool ? '✓' : '2'}
-              </div>
-              <span className="text-xs font-medium">Pool & Liquidity</span>
-            </div>
-            <div className={`w-6 h-0.5 ${createdPool.amm && createdPool.pool ? 'bg-green-300' : 'bg-gray-200'}`}></div>
-            <div className="flex items-center space-x-1 text-gray-400">
-              <div className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-medium bg-gray-100">
-                3
-              </div>
-              <span className="text-xs font-medium">Trade</span>
-            </div>
-          </div>
-        </div>
-
-        {/* Main Forms Container */}
-        <div className="flex flex-col lg:flex-row gap-4">
-          {/* Token Creation Component */}
-          <div className="form-container flex-1">
-            <div className="form-header">
-              <div className="w-6 h-6 bg-blue-100 rounded-lg flex items-center justify-center">
-                <span className="text-blue-600 font-bold text-xs">1</span>
-              </div>
-              <div>
-                <h3 className="form-title">Create Token-2022</h3>
-                <p className="form-subtitle">Create tokens with transfer hooks using counter_hook program</p>
-              </div>
-            </div>
-            
-            <TokenCreationForm 
-              onTokensSet={handleTokensSet}
-              createdTokens={createdTokens}
-            />
-          </div>
-
-
-
-          {/* Pool Creation Form */}
-          <div className="form-container flex-1">
-            <div className="form-header">
-              <div className="w-6 h-6 bg-purple-100 rounded-lg flex items-center justify-center">
-                <span className="text-purple-600 font-bold text-xs">2</span>
-              </div>
-              <div>
-                <h3 className="form-title">Create Pool</h3>
-                <p className="form-subtitle">Build liquidity pool with initial liquidity</p>
-              </div>
-            </div>
-            
-            <PoolCreationForm 
-              tokenA={createdTokens.tokenA}
-              tokenB={createdTokens.tokenB}
-              onPoolCreated={handlePoolCreated}
-              createdPool={createdPool}
-            />
-          </div>
-
-          {/* Trading Form */}
-          <div className="form-container flex-1">
-            <div className="form-header">
-              <div className="w-6 h-6 bg-orange-100 rounded-lg flex items-center justify-center">
-                <span className="text-orange-600 font-bold text-xs">3</span>
-              </div>
-              <div>
-                <h3 className="form-title">Trade Tokens</h3>
-                <p className="form-subtitle">Swap with transfer hook validation</p>
-              </div>
-            </div>
-            
-            <TradingInterface 
-              tokenA={createdTokens.tokenA}
-              tokenB={createdTokens.tokenB}
-              poolAddress={createdPool.pool}
-              ammAddress={createdPool.amm}
-              canTrade={!!(createdPool.amm && createdPool.pool)}
-              refreshTrigger={refreshTrigger}
-            />
-          </div>
-        </div>
-
-        {/* Bottom Section */}
-        <div className="mt-4 flex flex-col lg:flex-row gap-4">
-          {/* Status Panel */}
-          <div className="form-container lg:w-1/3">
-            <h3 className="form-title mb-3">Status</h3>
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Wallet Connected</span>
-                <span className="text-xs font-medium text-green-600">✓</span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Tokens Created</span>
-                <span className={`text-xs font-medium ${createdTokens.tokenA && createdTokens.tokenB ? 'text-green-600' : 'text-gray-400'}`}>
-                  {createdTokens.tokenA && createdTokens.tokenB ? '✓' : '—'}
-                </span>
-              </div>
-
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Pool Created</span>
-                <span className={`text-xs font-medium ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
-                  {createdPool.amm && createdPool.pool ? '✓' : '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Liquidity Added</span>
-                <span className={`text-xs font-medium ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
-                  {createdPool.amm && createdPool.pool ? '✓' : '—'}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-xs text-gray-600">Ready to Trade</span>
-                <span className={`text-xs font-medium ${createdPool.amm && createdPool.pool ? 'text-green-600' : 'text-gray-400'}`}>
-                  {createdPool.amm && createdPool.pool ? '✓' : '—'}
-                </span>
-              </div>
-              {faucetState.address && (
-                <div className="mt-3 p-2 rounded bg-indigo-50 border border-indigo-200">
-                  <div className="text-xs text-indigo-800 font-medium mb-1">Devnet Faucet Result</div>
-                  <div className="text-[11px] text-indigo-900 break-all">Address: {faucetState.address}</div>
+    <div className={`min-h-screen bg-white`}>
+      {/* Fixed top-right wallet connect */}
+      <div className="wallet-fixed">
+        <WalletConnectButton />
+      </div>
+      <main className="px-0 py-0">
+        <StageProvider>
+          <Orchestrator
+            createdTokens={createdTokens}
+            onTokensCreated={(a,b,ua,ub)=>{ 
+              setCreatedTokens({tokenA:a, tokenB:b, userAccountA:ua, userAccountB:ub});
+              console.log('Minted tokens', { a, b });
+              setTimeout(() => setRefreshTrigger(x=>x+1), 500);
+            }}
+            createdPool={createdPool}
+            onPoolCreated={(amm,pool)=>{ 
+              setCreatedPool({amm,pool});
+              console.log('Created AMM/Pool', { amm, pool })
+            }}
+            onLiquidityAdded={()=>{ 
+              setDepositDone(true); 
+              setRefreshTrigger(x=>x+1);
+              console.log('Deposited initial liquidity')
+            }}
+          >
+            {({ mintA, mintB, createAmmAndPool, depositInitialLiquidity, swapAtoB, isBusy, errorMsg }) => (
+              <div className="w-full flex flex-col items-center">
+                {/* Controls header with faucet */}
+                <div className="flex items-center gap-2 mt-4">
+                  <button
+                    onClick={handleDevnetFaucet}
+                    disabled={faucetState.isLoading}
+                    className="text-xs px-2 py-1 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+                    title="Generate a new devnet keypair and airdrop 5 SOL"
+                  >
+                    {faucetState.isLoading ? 'Airdropping 5 SOL...' : 'Devnet Faucet (5 SOL)'}
+                  </button>
                   {faucetState.secretKey && (
-                    <div className="text-[11px] text-indigo-900 break-all mt-1">Secret (bs58): {faucetState.secretKey}</div>
+                    <button
+                      onClick={() => {
+                        setDevWalletSecretInStorage(faucetState.secretKey!)
+                        if (typeof window !== 'undefined') {
+                          try { window.localStorage.setItem('@solana/wallet-adapter-react:walletName', 'Dev Keypair') } catch {}
+                          window.location.reload()
+                        }
+                      }}
+                      className="text-xs px-2 py-1 rounded bg-gray-700 text-white hover:bg-gray-800"
+                      title="Use the faucet keypair as the app's dev wallet"
+                    >
+                      Use As Dev Wallet
+                    </button>
                   )}
-                  {faucetState.signature && (
-                    <div className="text-[11px] text-indigo-900 break-all mt-1">Airdrop Sig: {faucetState.signature}</div>
-                  )}
-                  {faucetState.error && (
-                    <div className="text-[11px] text-red-600 break-all mt-1">Error: {faucetState.error}</div>
-                  )}
+                  {errorMsg && <span className="text-xs text-red-700 ml-2">{errorMsg}</span>}
                 </div>
-              )}
-            </div>
-          </div>
 
-          {/* Counter Hook Info */}
-          <div className="lg:w-1/3 bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg border border-blue-200 p-4">
-            <h3 className="form-title text-blue-900 mb-3">Counter Hook Integration</h3>
-            <div className="space-y-2 text-xs text-blue-800">
-              <div className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>Tokens created with transfer hooks enabled</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>Trade counters automatically initialized</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <span className="text-blue-600 mt-0.5">•</span>
-                <span>Counter_hook program tracks all transfers</span>
-              </div>
-            </div>
-          </div>
+                {/* Centered AMM Fisherman widget */}
+                <div className="mt-6 relative" style={{ width: 560, height: 560 }}>
+                  <AMMFishermanWidget getReserves={getReserves} activation={activation} swapAnimation={swapAnim} counters={counters} />
 
-          {/* Wallet Info */}
-          <div className="lg:w-1/3 bg-gradient-to-r from-green-50 to-blue-50 rounded-lg border border-green-200 p-4">
-            <h3 className="form-title text-green-900 mb-3">Wallet Integration</h3>
-            <div className="space-y-2 text-xs text-green-800">
-              <div className="flex items-start space-x-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>Your wallet is the authority for all created tokens</span>
+                  {/* Click map overlays, enabled in order */}
+                  {/* 1. Token A (left bucket) */}
+                  <button
+                    aria-label="Mint Token A"
+                    className={`absolute left-[100px] top-[250px] w-[120px] h-[120px] ${(!createdTokens.tokenA ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    disabled={!!createdTokens.tokenA || isBusy}
+                    onClick={async ()=>{ console.log('Mint Token A…'); await mintA(); console.log('Mint Token A done'); setDemoReserves(r=>({tokenA: r.tokenA+1, tokenB: r.tokenB})); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                    title="1. Mint Token A"
+                  />
+                  {/* 1. Token B (right bucket) */}
+                  <button
+                    aria-label="Mint Token B"
+                    className={`absolute left-[420px] top-[250px] w-[120px] h-[120px] ${(!createdTokens.tokenB ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    disabled={!!createdTokens.tokenB || isBusy}
+                    onClick={async ()=>{ console.log('Mint Token B…'); await mintB(); console.log('Mint Token B done'); setDemoReserves(r=>({tokenA: r.tokenA, tokenB: r.tokenB+1})); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                    title="1. Mint Token B"
+                  />
+
+                  {/* 2+3. Create AMM & Pool (fisherman area) */}
+                  <button
+                    aria-label="Create AMM and Pool"
+                    className={`absolute left-[260px] top-[140px] w-[160px] h-[160px] ${(createdTokens.tokenA && createdTokens.tokenB && !(createdPool.amm && createdPool.pool) ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    disabled={!(createdTokens.tokenA && createdTokens.tokenB) || !!(createdPool.amm && createdPool.pool) || isBusy}
+                    onClick={async ()=>{ console.log('Create AMM & Pool…'); await createAmmAndPool(); console.log('Create AMM & Pool done'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                    title="2. Create AMM, 3. Create Pool"
+                  />
+
+                  {/* 4. Deposit initial liquidity (pond area) */}
+                  <button
+                    aria-label="Deposit Liquidity"
+                    className={`absolute left-[160px] top-[320px] w-[320px] h-[160px] ${(createdPool.pool && !depositDone ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    disabled={!createdPool.pool || depositDone || isBusy}
+                    onClick={async ()=>{ console.log('Deposit Liquidity…'); await depositInitialLiquidity(); console.log('Deposit Liquidity done'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                    title="4. Deposit Liquidity"
+                  />
+
+                  {/* 5A. Swap A -> B (left after deposit) */}
+                  <button
+                    aria-label="Swap A to B"
+                    className={`absolute left-[100px] top-[250px] w-[120px] h-[120px] ${(depositDone && createdPool.pool && createdPool.amm ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    disabled={!depositDone || !createdPool.pool || !createdPool.amm || isBusy}
+                    onClick={async ()=>{ console.log('Swap A→B…'); await swapAtoB('AtoB'); console.log('Swap A→B done'); setDemoReserves(r=>({tokenA: Math.max(0,r.tokenA-1), tokenB: r.tokenB+1})); bumpSwapAnim('AtoB'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                    title="5A. Swap A → B"
+                  />
+
+                  {/* 5B. Swap B -> A (right after deposit) */}
+                  <button
+                    aria-label="Swap B to A"
+                    className={`absolute left-[420px] top-[250px] w-[120px] h-[120px] ${(depositDone && createdPool.pool && createdPool.amm ? 'cursor-pointer' : 'pointer-events-none')} bg-transparent`}
+                    disabled={!depositDone || !createdPool.pool || !createdPool.amm || isBusy}
+                    onClick={async ()=>{ console.log('Swap B→A…'); await swapAtoB('BtoA'); console.log('Swap B→A done'); setDemoReserves(r=>({tokenA: r.tokenA+1, tokenB: Math.max(0,r.tokenB-1)})); bumpSwapAnim('BtoA'); setTimeout(()=>setRefreshTrigger(x=>x+1), 800) }}
+                    title="5B. Swap B → A"
+                  />
+                </div>
+
+                {/* Live console */}
+                <ConsoleOverlay />
+
+                {/* Helper text */}
+                <div className="mt-3 text-xs text-gray-700">Order: Token A & B → AMM/Pool → Deposit → Swap.</div>
               </div>
-              <div className="flex items-start space-x-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>Pool creation includes initial liquidity at 1:1 ratio</span>
-              </div>
-              <div className="flex items-start space-x-2">
-                <span className="text-green-600 mt-0.5">•</span>
-                <span>All transactions use your connected wallet</span>
-              </div>
-            </div>
-          </div>
-        </div>
+            )}
+          </Orchestrator>
+        </StageProvider>
       </main>
     </div>
   )

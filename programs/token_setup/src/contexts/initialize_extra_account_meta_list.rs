@@ -13,7 +13,7 @@ pub struct InitializeExtraAccountMetaList<'info> {
     /// CHECK: ExtraAccountMetaList Account, must use these seeds
     #[account(
         init_if_needed,
-        seeds = [b"extra-account-metas", mint.key().as_ref()],
+        seeds = [b"extra-account-metas", mint.key().as_ref(), counter_hook::ID.as_ref()],
         bump,
         space = 128, // Increased space for ExtraAccountMetaList with 1 account
         payer = payer
