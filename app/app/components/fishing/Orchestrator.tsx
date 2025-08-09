@@ -7,6 +7,7 @@ import { TokenSetupClient } from "../../utils/token-setup-client"
 import { AnchorClient } from "../../utils/anchor-client"
 import { COUNTER_HOOK_PROGRAM_ID } from "../../config/program"
 import { useStage } from "./stage"
+import { TOKEN_2022_PROGRAM, ASSOCIATED_TOKEN_PROGRAM } from "../../config/constants"
 import { web3 } from '@coral-xyz/anchor'
 
 type Props = {
@@ -202,15 +203,104 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
   }, [publicKey, signTransaction, createdTokens.tokenA, createdTokens.tokenB, connection, onPoolCreated, play])
 
   const depositInitialLiquidity = useCallback(async () => {
-    if (!publicKey || !signTransaction || !createdTokens.tokenA || !createdTokens.tokenB || !createdPool.pool) return
+    if (!publicKey || !signTransaction || !sendTransaction || !createdTokens.tokenA || !createdTokens.tokenB || !createdPool.pool) return
     setIsBusy(true)
     play('splash')
     try {
+      console.log('[deposit] starting deposit flow')
+      // Ensure user's Token-2022 ATAs have sufficient balances; top-up if needed
+      const userPk = publicKey
+      const mintAPk = new web3.PublicKey(createdTokens.tokenA as string)
+      const mintBPk = new web3.PublicKey(createdTokens.tokenB as string)
+
+      const [userAccountA] = web3.PublicKey.findProgramAddressSync([
+        userPk.toBuffer(),
+        TOKEN_2022_PROGRAM.toBuffer(),
+        mintAPk.toBuffer(),
+      ], ASSOCIATED_TOKEN_PROGRAM)
+
+      const [userAccountB] = web3.PublicKey.findProgramAddressSync([
+        userPk.toBuffer(),
+        TOKEN_2022_PROGRAM.toBuffer(),
+        mintBPk.toBuffer(),
+      ], ASSOCIATED_TOKEN_PROGRAM)
+
+      const [accAInfo, accBInfo] = await Promise.all([
+        connection.getAccountInfo(userAccountA),
+        connection.getAccountInfo(userAccountB),
+      ])
+
+      let haveA = 0
+      let haveB = 0
+      if (accAInfo) {
+        const balA = await connection.getTokenAccountBalance(userAccountA)
+        haveA = Number(balA?.value?.amount ?? '0')
+      }
+      if (accBInfo) {
+        const balB = await connection.getTokenAccountBalance(userAccountB)
+        haveB = Number(balB?.value?.amount ?? '0')
+      }
+      console.log('[deposit] user ATAs:', {
+        userAccountA: userAccountA.toBase58(),
+        userAccountB: userAccountB.toBase58(),
+        haveA,
+        haveB,
+      })
+
       const client = new AnchorClient(connection, { publicKey, signTransaction } as any)
-      // Deposit 750 tokens of each (decimals = 6)
-      const liquidityAmount = 750 * 1_000_000
+      // Target deposit amount (decimals = 6)
+      const targetAmount = 750 * 1_000_000
+
+      // Best-effort top-up to reach target, but do not abort on failure
+      const setupClient = new TokenSetupClient(connection)
+      if (haveA < targetAmount) {
+        const deltaA = targetAmount - haveA
+        try {
+          console.log('[deposit] Top-up Token A by', deltaA)
+          const resA = await setupClient.mintTokens(userPk.toBase58(), sendTransaction, mintAPk.toBase58(), deltaA)
+          console.log('[deposit] top-up A result:', { success: resA.success, sig: resA.signature, error: resA.error })
+        } catch (e) {
+          console.warn('[deposit] Top-up A skipped due to error:', (e as any)?.message)
+        }
+      }
+      if (haveB < targetAmount) {
+        const deltaB = targetAmount - haveB
+        try {
+          console.log('[deposit] Top-up Token B by', deltaB)
+          const resB = await setupClient.mintTokens(userPk.toBase58(), sendTransaction, mintBPk.toBase58(), deltaB)
+          console.log('[deposit] top-up B result:', { success: resB.success, sig: resB.signature, error: resB.error })
+        } catch (e) {
+          console.warn('[deposit] Top-up B skipped due to error:', (e as any)?.message)
+        }
+      }
+
+      // Re-check balances and compute effective deposit
+      try {
+        const [balANew, balBNew] = await Promise.all([
+          connection.getTokenAccountBalance(userAccountA),
+          connection.getTokenAccountBalance(userAccountB),
+        ])
+        haveA = Number(balANew?.value?.amount ?? '0')
+        haveB = Number(balBNew?.value?.amount ?? '0')
+      } catch {}
+
+      const liquidityAmount = Math.max(0, Math.min(targetAmount, haveA, haveB))
+      console.log('[deposit] post-topup balances:', { haveA, haveB, targetAmount, liquidityAmount })
+      if (liquidityAmount === 0) {
+        setErrorMsg('Not enough balance to deposit. Please mint again.')
+        return
+      }
+
       // Use cached lpMint captured during pool creation
       const lpMintPk = new web3.PublicKey(lpMintCached as string)
+      console.log('[deposit] calling depositLiquidity with', {
+        amm: createdPool.amm,
+        pool: createdPool.pool,
+        mintA: createdTokens.tokenA,
+        mintB: createdTokens.tokenB,
+        amountA: liquidityAmount,
+        amountB: liquidityAmount,
+      })
       const depRes = await client.depositLiquidity(
         new web3.PublicKey(createdTokens.tokenA as string),
         new web3.PublicKey(createdTokens.tokenB as string),

@@ -190,7 +190,8 @@ export class TokenSetupClient {
       const mintIx = new web3.TransactionInstruction({
         programId: new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID),
         keys: [
-          { pubkey: new web3.PublicKey(mint), isSigner: false, isWritable: false },
+          // Mint must be writable for Token-2022 mint_to CPI inside the program
+          { pubkey: new web3.PublicKey(mint), isSigner: false, isWritable: true },
           { pubkey: tokenAccount, isSigner: false, isWritable: true },
           { pubkey: new web3.PublicKey(walletPublicKey), isSigner: true, isWritable: true },
           { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },

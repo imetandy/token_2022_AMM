@@ -297,7 +297,8 @@
           "name": "mint",
           "docs": [
             "The mint to mint tokens from"
-          ]
+          ],
+          "writable": true
         },
         {
           "name": "token_account",

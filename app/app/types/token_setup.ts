@@ -303,7 +303,8 @@ export type TokenSetup = {
           "name": "mint",
           "docs": [
             "The mint to mint tokens from"
-          ]
+          ],
+          "writable": true
         },
         {
           "name": "tokenAccount",

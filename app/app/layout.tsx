@@ -9,11 +9,8 @@ export const metadata = {
   description: 'Trade Token-2022 tokens with transfer hooks on Solana',
 }
 
-// Dynamically import the wallet provider to avoid SSR issues
-const WalletContextProvider = dynamic(
-  () => import('./components/WalletProvider').then(mod => ({ default: mod.WalletContextProvider })),
-  { ssr: false }
-)
+// Use a client component wrapper for the wallet provider
+import { WalletContextProvider } from './components/WalletProvider'
 
 export default function RootLayout({
   children,

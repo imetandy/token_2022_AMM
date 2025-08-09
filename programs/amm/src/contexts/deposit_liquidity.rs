@@ -230,11 +230,13 @@ impl<'info> DepositLiquidity<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook accounts for mint A (validation account only)
-            transfer_ix.accounts.push(AccountMeta::new_readonly(
-                self.extra_account_meta_list_a.key(),
-                false,
-            ));
+            // Add transfer hook accounts for mint A
+            // 1) validation account (extra account meta list)
+            transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_a.key(), false));
+            // 2) the resolved extra account required by the hook (mint_trade_counter)
+            transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_a.key(), false));
+            // 3) the transfer hook program id must be present so the token program can CPI into it
+            transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_a.key(), false));
                         
             // Invoke the modified instruction
             let account_infos = &[
@@ -244,6 +246,8 @@ impl<'info> DepositLiquidity<'info> {
                 self.pool_account_a.to_account_info(),
                 self.user.to_account_info(),
                 self.extra_account_meta_list_a.to_account_info(),
+                self.mint_trade_counter_a.to_account_info(),
+                self.transfer_hook_program_a.to_account_info(),
             ];
             
             // Account infos prepared for transfer
@@ -266,11 +270,10 @@ impl<'info> DepositLiquidity<'info> {
                 6,
             ).unwrap();
             
-            // Add transfer hook accounts for mint B (validation account only)
-            transfer_ix.accounts.push(AccountMeta::new_readonly(
-                self.extra_account_meta_list_b.key(),
-                false,
-            ));
+            // Add transfer hook accounts for mint B
+            transfer_ix.accounts.push(AccountMeta::new_readonly(self.extra_account_meta_list_b.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new(self.mint_trade_counter_b.key(), false));
+            transfer_ix.accounts.push(AccountMeta::new_readonly(self.transfer_hook_program_b.key(), false));
             
             // Invoke the modified instruction
             let account_infos = &[
@@ -280,6 +283,8 @@ impl<'info> DepositLiquidity<'info> {
                 self.pool_account_b.to_account_info(),
                 self.user.to_account_info(),
                 self.extra_account_meta_list_b.to_account_info(),
+                self.mint_trade_counter_b.to_account_info(),
+                self.transfer_hook_program_b.to_account_info(),
             ];
             
             invoke(&transfer_ix, account_infos)?;

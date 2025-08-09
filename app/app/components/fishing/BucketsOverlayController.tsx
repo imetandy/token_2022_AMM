@@ -2,11 +2,11 @@
 
 import React, { useEffect, useState } from "react"
 import Overlays from "./Overlays"
+import { Buffer } from 'buffer'
 import { useConnection } from "@solana/wallet-adapter-react"
 import { TokenSetup } from "../../utils/token-setup"
 import { AMM_PROGRAM_ID } from "../../config/program"
 import { createRpc } from "../../config/rpc-config"
-import { fetchPool } from "../../clients/amm/accounts/pool"
 import { web3 } from '@coral-xyz/anchor'
 
 type Props = {
@@ -58,12 +58,24 @@ export default function BucketsOverlayController({ tokenA, tokenB, createdPool, 
       if (!createdPool.pool) { setPoolStats(null); return }
       try {
         const rpc = createRpc()
-        const acct = await fetchPool(rpc as any, createdPool.pool as any)
+        const info = await rpc.getAccountInfo(createdPool.pool as any).send()
+        if (!info.value) { if (!cancelled) setPoolStats(null); return }
+        const [encoded, encoding] = info.value.data as unknown as [string, 'base64' | 'base58']
+        const data = Buffer.from(encoding === 'base64' ? encoded : Buffer.from(require('bs58').decode(encoded)))
+        let off = 8
+        const readPk = () => { const pk = new web3.PublicKey(data.slice(off, off+32)); off += 32; return pk }
+        /* const amm = */ readPk()
+        /* const mintA = */ readPk()
+        /* const mintB = */ readPk()
+        const vaultA = readPk()
+        const vaultB = readPk()
+        /* const lpMint = */ readPk()
+        const totalLiquidity = Number(data.readBigUInt64LE(off))
         if (!cancelled) {
           setPoolStats({
-            totalLiquidity: Number(acct.data.totalLiquidity),
-            vaultA: acct.data.vaultA as string,
-            vaultB: acct.data.vaultB as string,
+            totalLiquidity,
+            vaultA: vaultA.toBase58(),
+            vaultB: vaultB.toBase58(),
           })
         }
       } catch {

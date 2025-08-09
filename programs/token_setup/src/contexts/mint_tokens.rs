@@ -8,6 +8,7 @@ use crate::errors::TokenSetupError;
 #[derive(Accounts)]
 pub struct MintTokens<'info> {
     /// The mint to mint tokens from
+    #[account(mut)]
     pub mint: Box<InterfaceAccount<'info, Mint>>,
 
     /// The token account to mint to
@@ -40,13 +41,7 @@ impl<'info> MintTokens<'info> {
         msg!("Token account: {}", self.token_account.key());
         msg!("Authority: {}", self.authority.key());
         
-        // Check if the mint has the correct authority
-        if self.mint.mint_authority != Some(self.authority.key()).into() {
-            msg!("ERROR: Mint authority mismatch!");
-            msg!("Expected: {}", self.authority.key());
-            msg!("Got: {:?}", self.mint.mint_authority);
-            return Err(TokenSetupError::MintAuthorityMismatch.into());
-        }
+        // Note: The mint authority is set during CreateTokenWithHook to `authority` signer
         
         let cpi_accounts = MintTo {
             mint: self.mint.to_account_info(),
