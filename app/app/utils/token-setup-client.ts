@@ -52,7 +52,6 @@ export class TokenSetupClient {
         [
           Buffer.from('extra-account-metas'),
           mintPubkey.toBuffer(),
-          new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID).toBuffer(),
         ],
         new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
       )
@@ -109,8 +108,11 @@ export class TokenSetupClient {
       }).compileToV0Message()
       const tx = new web3.VersionedTransaction(msgV0)
       tx.sign([mintKeypair])
+      console.log('[createTokenWithHook] sending tx...')
       const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 } as any)
-      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed')
+      console.log('[createTokenWithHook] sig:', signature)
+      const confirmation: any = await waitForConfirmation(this.connection, signature, 30000, 'confirmed')
+      console.log('[createTokenWithHook] confirmation:', confirmation?.value)
       if (confirmation.value.err) {
         return { signature, success: false, error: 'Transaction failed', logs: [] }
       }
@@ -119,7 +121,6 @@ export class TokenSetupClient {
         [
           Buffer.from('extra-account-metas'),
           mintPubkey.toBuffer(),
-          new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID).toBuffer(),
         ],
         new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
       )
@@ -209,8 +210,11 @@ export class TokenSetupClient {
         instructions: allIxs,
       }).compileToV0Message()
       const tx = new web3.VersionedTransaction(msgV0)
+      console.log('[mintTokens] sending tx... amount:', amount)
       const signature = await sendTransaction(tx, this.connection, { skipPreflight: true, maxRetries: 3 } as any)
-      const confirmation: any = await waitForConfirmation(this.connection, signature, 60000, 'confirmed')
+      console.log('[mintTokens] sig:', signature)
+      const confirmation: any = await waitForConfirmation(this.connection, signature, 30000, 'confirmed')
+      console.log('[mintTokens] confirmation:', confirmation?.value)
       if (confirmation.value.err) {
         const txInfo = await this.connection.getTransaction(signature, { commitment: 'confirmed', maxSupportedTransactionVersion: 0 })
         return { signature, success: false, error: 'Transaction failed', logs: txInfo?.meta?.logMessages || [] }
@@ -238,27 +242,18 @@ export class TokenSetupClient {
         }
       }
 
-      const disc = new Uint8Array([92, 197, 174, 197, 41, 124, 19, 3])
+      // Call counter_hook to create EAML under hook ownership
+      const disc = new Uint8Array([17, 18, 19, 20, 21, 22, 23, 24])
       const [extraAccountMetaListPda] = findPda(
-        [
-          Buffer.from('extra-account-metas'),
-          new web3.PublicKey(mint).toBuffer(),
-          new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID).toBuffer(),
-        ],
-        new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID)
-      )
-      const [mintTradeCounterPda] = findPda(
-        [Buffer.from('mint-trade-counter'), new web3.PublicKey(mint).toBuffer()],
+        [Buffer.from('extra-account-metas'), new web3.PublicKey(mint).toBuffer()],
         new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID)
       )
-
       const ix = new web3.TransactionInstruction({
-        programId: new web3.PublicKey(TOKEN_SETUP_PROGRAM_ID),
+        programId: new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID),
         keys: [
           { pubkey: new web3.PublicKey(walletPublicKey), isSigner: true, isWritable: true },
           { pubkey: extraAccountMetaListPda, isSigner: false, isWritable: true },
           { pubkey: new web3.PublicKey(mint), isSigner: false, isWritable: false },
-          { pubkey: mintTradeCounterPda, isSigner: false, isWritable: false },
           { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
         ],
         data: Buffer.from(disc),

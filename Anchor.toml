@@ -5,13 +5,13 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-counter_hook = "GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ"
+counter_hook = "4476u1WA3X8iHbLnhKsmRVTBp4cynRMopq9WB8nSs3M9"
 token_2022_amm = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL"
 token_setup = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp"
 amm = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos"
 
 [programs.localnet]
-counter_hook = "GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ"
+counter_hook = "4476u1WA3X8iHbLnhKsmRVTBp4cynRMopq9WB8nSs3M9"
 token_2022_amm = "GYLAVXZXgZ22Bs9oGKnvTbc3AgxRFykABC5x6QzzLiYL"
 token_setup = "Ba93wuicukbNB6djDoUkvMpDUxTw4Gzo3VH1oLfq9HBp"
 amm = "H7dswT3BXcCEeVjjLWkfpBP2p5imuJy7Qaq9i5VCpoos"

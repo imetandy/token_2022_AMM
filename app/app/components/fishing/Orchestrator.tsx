@@ -44,7 +44,7 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
   const [direction, setDirection] = useState<'AtoB'|'BtoA'>('AtoB')
 
   const createBothTokens = useCallback(async () => {
-    if (!publicKey || !sendTransaction || !signTransaction) return
+    if (!publicKey || !sendTransaction) { console.warn('[createBothTokens] missing wallet caps', { hasPk: !!publicKey, hasSend: !!sendTransaction, hasSign: !!signTransaction }); return }
     setIsBusy(true)
     play('click')
     try {
@@ -58,6 +58,9 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       if (a.signature) console.log('Create Token A tx:', `https://explorer.solana.com/tx/${a.signature}?cluster=devnet`)
       const mintA = a.mintAddress
       // Mint 1000 tokens (decimals = 6)
+      // Ensure EAML under hook ownership
+      console.log('[mintA] init EAML under hook…')
+      await client.initializeExtraAccountMetaList(publicKey.toBase58() as any, sendTransaction, mintA as any)
       const mintAR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintA as any, 1_000 * 1_000_000)
       if (!mintAR.success) {
         console.error('Mint A failed', mintAR)
@@ -76,6 +79,9 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
       if (b.signature) console.log('Create Token B tx:', `https://explorer.solana.com/tx/${b.signature}?cluster=devnet`)
       const mintB = b.mintAddress
       // Mint 1000 tokens (decimals = 6)
+      // Ensure EAML under hook ownership
+      console.log('[mintB] init EAML under hook…')
+      await client.initializeExtraAccountMetaList(publicKey.toBase58() as any, sendTransaction, mintB as any)
       const mintBR = await client.mintTokens(publicKey.toBase58() as any, sendTransaction, mintB as any, 1_000 * 1_000_000)
       if (!mintBR.success) {
         console.error('Mint B failed', mintBR)
@@ -98,7 +104,8 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
   }, [publicKey, sendTransaction, signTransaction, connection, onTokensCreated, play])
 
   const mintAOnly = useCallback(async () => {
-    if (!publicKey || !sendTransaction || !signTransaction) return
+    if (!publicKey || !sendTransaction) { console.warn('[mintAOnly] missing wallet caps', { hasPk: !!publicKey, hasSend: !!sendTransaction, hasSign: !!signTransaction }); return }
+    console.log('[mintAOnly] starting')
     setIsBusy(true)
     play('click')
     try {
@@ -129,7 +136,8 @@ export default function Orchestrator({ createdTokens, onTokensCreated, createdPo
   }, [publicKey, sendTransaction, signTransaction, connection, onTokensCreated, play, createdTokens])
 
   const mintBOnly = useCallback(async () => {
-    if (!publicKey || !sendTransaction || !signTransaction) return
+    if (!publicKey || !sendTransaction) { console.warn('[mintBOnly] missing wallet caps', { hasPk: !!publicKey, hasSend: !!sendTransaction, hasSign: !!signTransaction }); return }
+    console.log('[mintBOnly] starting')
     setIsBusy(true)
     play('click')
     try {
