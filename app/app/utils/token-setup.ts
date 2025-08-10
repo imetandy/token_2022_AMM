@@ -5,7 +5,8 @@ type Keypair = any;
 import { Program, AnchorProvider } from '@coral-xyz/anchor';
 import bs58 from 'bs58';
 import { createRpc, getBestRpcEndpoint } from '../config/rpc-config';
-import { createTransactionMessage, setTransactionMessageFeePayerSigner, setTransactionMessageLifetimeUsingBlockhash, signTransactionMessageWithSigners, sendAndConfirmTransactionFactory } from '@solana/kit';
+import { COUNTER_HOOK_PROGRAM_ID } from '../config/program';
+// Import kit dynamically where used to avoid type-resolution issues
 import type { Address } from '@solana/addresses';
 
 export interface TokenSetupResult {
@@ -23,7 +24,7 @@ export class TokenSetup {
   constructor(connection: Connection, ammProgramId: web3.PublicKey) {
     this.connection = connection;
     this.ammProgramId = ammProgramId;
-    this.counterHookProgramId = new web3.PublicKey('GwLhrTbEzTY91MphjQyA331P63yQDq31Frw5uvZ1umdQ');
+    this.counterHookProgramId = new web3.PublicKey(COUNTER_HOOK_PROGRAM_ID);
   }
 
   /**
@@ -46,26 +47,34 @@ export class TokenSetup {
     console.log('Trade counter PDA:', tradeCounterPda.toString());
 
     // Create the initialization instruction
+    // Call our native hook initializer (discriminator 1..8) with expected accounts
     const initInstruction = {
       programId: this.counterHookProgramId,
       keys: [
-        { pubkey: walletPublicKey, isSigner: true, isWritable: true },
-        { pubkey: tradeCounterPda, isSigner: false, isWritable: true },
-        { pubkey: mintPubkey, isSigner: false, isWritable: false },
-        { pubkey: new web3.PublicKey('11111111111111111111111111111111'), isSigner: false, isWritable: false }
+        { pubkey: tradeCounterPda, isSigner: false, isWritable: true }, // counter PDA (writable)
+        { pubkey: mintPubkey, isSigner: false, isWritable: false },     // mint
+        { pubkey: walletPublicKey, isSigner: false, isWritable: false }, // hook owner
+        { pubkey: walletPublicKey, isSigner: true, isWritable: true },   // payer
+        { pubkey: web3.SystemProgram.programId, isSigner: false, isWritable: false },
       ],
-      data: Buffer.from([
-        // Instruction discriminator for initialize_mint_trade_counter
-        92, 197, 174, 197, 41, 124, 19, 3
-      ])
+      data: Buffer.from([1,2,3,4,5,6,7,8])
     };
+
+    const { 
+      createTransactionMessage, 
+      setTransactionMessageFeePayerSigner, 
+      setTransactionMessageLifetimeUsingBlockhash, 
+      signTransactionMessageWithSigners, 
+      sendAndConfirmTransactionFactory, 
+      createSolanaRpcSubscriptions 
+    } = await import('@solana/kit')
 
     const { value: { blockhash, lastValidBlockHeight } } = await this.rpc.getLatestBlockhash().send();
     let message = createTransactionMessage({ version: 0, instructions: [initInstruction as any] } as any) as any;
     message = setTransactionMessageFeePayerSigner(message as any, walletPublicKey as any) as any;
     message = setTransactionMessageLifetimeUsingBlockhash(message as any, { blockhash, lastValidBlockHeight } as any) as any;
     const signed = await signTransactionMessageWithSigners(message as any, {} as any);
-    const { createSolanaRpcSubscriptions } = await import('@solana/kit');
+
     const rpcSubscriptions = createSolanaRpcSubscriptions(getBestRpcEndpoint() as any);
     const sendAndConfirm = sendAndConfirmTransactionFactory({ rpc: this.rpc, rpcSubscriptions } as any);
     const signature = await sendAndConfirm(signed as any, { commitment: 'confirmed', lastValidBlockHeight } as any);

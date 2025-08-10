@@ -1,6 +1,6 @@
 // src/widgets/AMMFishermanWidget.tsx
 import React, { useEffect, useRef, useState } from "react";
-import AMMFisherman from "@/components/AMMFisherman";
+import AMMFisherman from "../components/fishing/ammFisherman";
 
 /**
  * AMMFishermanWidget
